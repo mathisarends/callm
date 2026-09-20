@@ -2,40 +2,38 @@
 
 ![llmify banner](static/banner.png)
 
-A type-safe Python library for LLM chat completions.
+A small, type-safe Python interface to the chat models, built on
+[pydantic-ai](https://github.com/pydantic/pydantic-ai).
+
+llmify is the contract, not the transport. Seven providers reach you through one
+`ChatModel`: awaited for a turn, iterated for a stream, and the same either way.
+The wire protocols underneath are pydantic-ai's, which is why there is so little
+here to go wrong.
 
 **Features:**
 
-- Simple, intuitive API for OpenAI, Codex, Azure OpenAI, Cerebras, Anthropic, and Google Gemini
-- Type-safe structured outputs with Pydantic
-- Built-in tool calling support
-- Async streaming
-- Image analysis support
+- One interface across OpenAI, Codex, Azure OpenAI, Cerebras, Anthropic and Google Gemini
+- Type-safe structured output with Pydantic
+- Tool calling, with schemas derived from your functions
+- Async streaming, ending in the same response a call returns
+- Images, reasoning traces and cache-aware token usage
 - Automatic retries for transient failures, with per-retry callbacks
-- Optional token usage and cost tracking
 
 ## Contents
 
 - [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Core Features](#core-features)
-  - [Message Types](#message-types)
-  - [Structured Outputs](#structured-outputs)
-  - [Tool Calling](#tool-calling)
+- [Quick start](#quick-start)
+- [The contract](#the-contract)
+  - [Messages](#messages)
+  - [Calling](#calling)
   - [Streaming](#streaming)
-  - [Retries](#retries)
-  - [Token Usage Tracking](#token-usage-tracking)
-- [Configuration](#configuration)
-  - [Environment Variables](#environment-variables)
-  - [Model Parameters](#model-parameters)
+  - [Structured output](#structured-output)
+  - [Tools](#tools)
+  - [Images](#images)
+  - [Usage and reasoning](#usage-and-reasoning)
+  - [Errors and retries](#errors-and-retries)
 - [Providers](#providers)
-  - [OpenAI](#openai)
-  - [OpenAI Responses API](#openai-responses-api)
-  - [Codex](#codex)
-  - [Azure OpenAI](#azure-openai)
-  - [Anthropic](#anthropic)
-  - [Cerebras](#cerebras)
-  - [Google Gemini](#google-gemini)
+- [Model settings](#model-settings)
 - [Credits](#credits)
 - [License](#license)
 
@@ -48,683 +46,289 @@ pip install py-llmify
 Install only the provider you need:
 
 ```bash
-pip install py-llmify[openai]      # OpenAI + Azure OpenAI
+pip install py-llmify[openai]      # OpenAI, Azure OpenAI and Codex
 pip install py-llmify[cerebras]    # Cerebras
 pip install py-llmify[anthropic]   # Anthropic (Claude)
 pip install py-llmify[google]      # Google Gemini
-pip install py-llmify[all]         # All providers
+pip install py-llmify[all]         # all of them
 ```
 
-Extras can be combined, for example:
+Extras combine, for example `py-llmify[openai,google]`. Importing `llmify` never
+imports a provider SDK, so an extra you did not install costs you nothing.
 
-```bash
-pip install py-llmify[openai,google]
-```
-
-## Quick Start
+## Quick start
 
 ```python
 import asyncio
-from llmify import ChatOpenAI, UserMessage, SystemMessage
+from llmify import ChatOpenAI, SystemMessage, UserMessage
 
 async def main():
-    llm = ChatOpenAI(model="gpt-4o")
+    async with ChatOpenAI("gpt-5.6") as model:
+        response = await model([
+            SystemMessage(content="You are a helpful assistant."),
+            UserMessage(content="What is 2+2?"),
+        ])
 
-    response = await llm.invoke([
-        SystemMessage(content="You are a helpful assistant"),
-        UserMessage(content="What is 2+2?")
-    ])
-
-    print(response.completion)  # "2+2 equals 4"
+    print(response.completion)          # "2 + 2 equals 4."
+    print(response.usage.total_tokens)  # 29
 
 asyncio.run(main())
 ```
 
-All `invoke` calls return a `ChatInvokeCompletion[T]` with:
+## The contract
 
-- `completion` — the text (or parsed Pydantic model) returned by the model
-- `tool_calls` — list of `ToolCall` objects, if any
-- `usage` — token usage (`ChatInvokeUsage`)
-- `stop_reason` — why the model stopped
+Everything public lives in `llmify.ports`, and every provider speaks exactly it.
 
-## Core Features
+### Messages
 
-### Message Types
+Four message types, all frozen, so a history can be shared between requests
+without one of them editing another's:
 
 ```python
 from llmify import SystemMessage, UserMessage, AssistantMessage, ToolResultMessage
 
 messages = [
-    SystemMessage(content="You are a Python expert"),
+    SystemMessage(content="You are a Python expert."),
     UserMessage(content="How do I read a file?"),
-    AssistantMessage(content="You can use open() with a context manager"),
-    UserMessage(content="Show me an example"),
+    AssistantMessage(content="Use open() with a context manager."),
+    UserMessage(content="Show me an example."),
 ]
 ```
 
-#### Image messages
+A `SystemMessage` is carried as the request's instructions rather than as a turn
+in the history, which is what every provider actually wants.
 
-Pass images inline inside a `UserMessage` using content parts:
+### Calling
 
-```python
-from llmify import UserMessage, ContentPartTextParam, ContentPartImageParam, ImageURL
-
-message = UserMessage(
-    content=[
-        ContentPartTextParam(text="What's in this image?"),
-        ContentPartImageParam(
-            image_url=ImageURL(
-                url="data:image/jpeg;base64,<base64data>",
-                media_type="image/jpeg",
-                detail="high",
-            )
-        ),
-    ]
-)
-```
-
-### Structured Outputs
-
-Pass `output_format` to get a validated Pydantic model back:
+`call` runs one turn and returns it whole. `await model(...)` is the same thing,
+spelled shorter:
 
 ```python
-from pydantic import BaseModel
-from llmify import ChatOpenAI, UserMessage
-
-class Person(BaseModel):
-    name: str
-    age: int
-    occupation: str
-
-async def main():
-    llm = ChatOpenAI(model="gpt-4o")
-
-    response = await llm.invoke(
-        [UserMessage(content="Extract: John is 32 and works as a data scientist")],
-        output_format=Person,
-    )
-
-    person = response.completion  # type: Person
-    print(f"{person.name}, {person.age}, {person.occupation}")
-    # John, 32, data scientist
-
-asyncio.run(main())
+response = await model.call(messages)
+response = await model(messages)     # identical
 ```
 
-### Tool Calling
+A `ModelResponse` carries:
 
-#### `@tool` decorator
+| Field | What it is |
+| --- | --- |
+| `completion` | the text, or the parsed object when `output_format` was given |
+| `thinking` | the reasoning trace, when the model exposed one |
+| `tool_calls` | what the model wants run before it can finish |
+| `usage` | input, output and cache token counts |
+| `finish_reason` | why the model stopped |
+| `provider_state` | the provider's own turn, for replaying it verbatim |
 
-Define tools from plain Python functions:
-
-```python
-import json
-from llmify import ChatOpenAI, UserMessage, AssistantMessage, ToolResultMessage, tool
-
-@tool
-def get_weather(location: str, unit: str = "celsius") -> str:
-    """Get current weather for a location"""
-    return f"Weather in {location}: 22°{unit[0].upper()}, Sunny"
-
-async def main():
-    llm = ChatOpenAI(model="gpt-4o")
-    messages = [UserMessage(content="What's the weather in Paris?")]
-
-    response = await llm.invoke(messages, tools=[get_weather])
-
-    if response.tool_calls:
-        tc = response.tool_calls[0]
-        args = json.loads(tc.function.arguments)
-        result = get_weather(**args)
-
-        messages.append(AssistantMessage(content=response.completion, tool_calls=response.tool_calls))
-        messages.append(ToolResultMessage(tool_call_id=tc.id, content=result))
-
-        final = await llm.invoke(messages)
-        print(final.completion)
-
-asyncio.run(main())
-```
-
-#### `RawSchemaTool`
-
-Use a raw JSON schema when you need full control over the tool definition:
-
-```python
-import json
-from llmify import ChatOpenAI, UserMessage, AssistantMessage, ToolResultMessage, RawSchemaTool
-
-search_tool = RawSchemaTool(
-    name="search_web",
-    description="Search the web for information",
-    schema={
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "description": "Search query"},
-            "max_results": {"type": "integer", "default": 5},
-        },
-        "required": ["query"],
-    },
-)
-
-async def main():
-    llm = ChatOpenAI(model="gpt-4o-mini")
-    messages = [UserMessage(content="Search for Python 3.13 features")]
-
-    response = await llm.invoke(messages, tools=[search_tool])
-
-    if response.tool_calls:
-        tc = response.tool_calls[0]
-        args = json.loads(tc.function.arguments)
-        result = my_search_fn(**args)
-
-        messages.append(AssistantMessage(content=response.completion, tool_calls=response.tool_calls))
-        messages.append(ToolResultMessage(tool_call_id=tc.id, content=result))
-
-        final = await llm.invoke(messages)
-        print(final.completion)
-
-asyncio.run(main())
-```
-
-#### Dict schema
-
-Pass raw OpenAI-style tool dicts directly:
-
-```python
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get the current weather",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "city": {"type": "string"},
-                },
-                "required": ["city"],
-            },
-        },
-    }
-]
-
-response = await llm.invoke(messages, tools=tools)
-print(response.tool_calls[0].function.name)
-print(json.loads(response.tool_calls[0].function.arguments))
-```
+`response.as_assistant_message()` turns a turn into the history entry for the
+next request, `provider_state` included — which is what keeps a reasoning model
+from losing its train of thought across a tool round-trip.
 
 ### Streaming
 
-```python
-import json
-from llmify import ChatOpenAI, UserMessage, StreamEventType
-
-async def main():
-    llm = ChatOpenAI()
-    chunk_count = 0
-
-    async for event in llm.stream([UserMessage(content="Write a haiku about Python")]):
-        if event.type is StreamEventType.TEXT:
-            chunk_count += 1
-            print(f"[{chunk_count:02d}]{event.delta}", end="", flush=True)
-        elif event.type is StreamEventType.END:
-            print(f"\n[stream_end stop={event.stop_reason}]")
-
-asyncio.run(main())
-```
-
-For streaming with tools, handle `StreamEventType.TOOL_CALL` and parse the complete JSON arguments:
+A stream yields deltas as they arrive and ends with exactly one `ModelResponse`,
+the same value `call` would have returned. Tool calls are never streamed
+half-built: each one arrives once its arguments are complete.
 
 ```python
-import json
-from llmify import ChatOpenAI, UserMessage, StreamEventType
+from llmify import ModelEventType
 
-async def main():
-    llm = ChatOpenAI()
-
-    async for event in llm.stream(messages, tools=[get_weather]):
-        if event.type is StreamEventType.TEXT:
+async for event in model.stream(messages):
+    match event.type:
+        case ModelEventType.TEXT_DELTA:
             print(event.delta, end="", flush=True)
-        elif event.type is StreamEventType.TOOL_CALL:
-            args = json.loads(event.tool_call.function.arguments)
-            result = get_weather(**args)
-            print(f"\n[tool_result] {result}")
-        elif event.type is StreamEventType.END:
-            print(f"\n[stream_end stop={event.stop_reason} tokens={event.usage.total_tokens if event.usage else 'unknown'}]")
-
-asyncio.run(main())
+        case ModelEventType.THINKING_DELTA:
+            ...  # reasoning, kept separate from the answer
+        case ModelEventType.TOOL_CALL:
+            print(event.tool_call.name)
+        case ModelEventType.RESPONSE:
+            print(event.usage.total_tokens)
 ```
 
-Full runnable example: `examples/streaming_tool_calls.py`
+### Structured output
 
-### Retries
-
-All bundled providers retry transient connection, timeout, rate-limit, and server
-errors through the same llmify retry layer. `max_retries` is the number of
-additional attempts after the initial request and defaults to `2`; set it to `0`
-to disable automatic retries:
+Hand `call` a Pydantic model and get one back:
 
 ```python
-llm = ChatOpenAIResponses(model="gpt-5.4-mini", max_retries=5)
+from pydantic import BaseModel
+
+class Recipe(BaseModel):
+    name: str
+    minutes: int
+    ingredients: list[str]
+
+response = await model(messages, output_format=Recipe)
+response.completion.ingredients  # list[str]
 ```
 
-Rate-limit `Retry-After` headers are respected, with exponential backoff and
-jitter for other transient failures. `invoke()` safely discards an incomplete
-attempt before retrying. `stream()` retries only until its first event has been
-emitted; after that it raises `RetryableError` rather than replaying duplicate
-output.
+Every provider does this through a tool call, since that is the one shape all of
+them speak. An answer that does not parse raises `ModelBehaviorError` rather
+than arriving as something it is not.
 
-Each scheduled retry is reported through a sync or async `on_retry` callback:
+### Tools
+
+`@tool` derives the schema from the function's signature. Anything Pydantic
+understands as a parameter type — nested models, literals, unions, `Annotated`
+descriptions — is understood here:
 
 ```python
-from llmify import RetryEvent
+from typing import Annotated
+from pydantic import Field
+from llmify import tool
 
-def report_retry(event: RetryEvent) -> None:
-    print(
-        f"Attempt {event.failed_attempt}/{event.max_attempts} failed; "
-        f"retry {event.retry_number}/{event.max_retries} "
-        f"in {event.delay:.1f}s: {event.error}"
-    )
-
-llm = ChatOpenAIResponses(model="gpt-5.4-mini", max_retries=5, on_retry=report_retry)
+@tool
+def search_web(
+    query: Annotated[str, Field(description="What to look for")],
+    max_results: int = 10,
+) -> str:
+    """Search the web for information."""
+    return f"results for {query}"
 ```
 
-Pass `on_retry` to `invoke()` or `stream()` to override the client-level callback
-for a single call. Callback exceptions cancel the retry and propagate to the caller.
-
-### Token Usage Tracking
-
-Every response carries `usage`, and every provider exposes its model as `llm.model`.
+A tool knows how to run the calls it receives, and turns a raised exception into
+a tool result the model can recover from:
 
 ```python
-response = await llm.invoke([UserMessage(content="Hi")])
-print(response.usage)
+messages = [UserMessage(content="Look up llmify and summarise it.")]
+by_name = {t.name: t for t in (search_web,)}
+
+while True:
+    response = await model(messages, tools=[search_web])
+    messages.append(response.as_assistant_message())
+    if not response.tool_calls:
+        break
+    for call in response.tool_calls:
+        messages.append(await by_name[call.name].execute(call))
 ```
 
-`ChatInvokeUsage` holds only the counters every provider reports —
-`prompt_tokens`, `prompt_cached_tokens`, `completion_tokens`, `total_tokens`.
-Providers that report more return a subclass, so backend-specific counters never
-leak into the shared model:
+`tool_choice` takes `"auto"`, `"required"` or `"none"`. For a schema you already
+have, build a `ModelTool(name=..., description=..., parameters=...)` directly —
+there is no separate type for it.
 
-| Provider | Usage type | Extra fields |
-| --- | --- | --- |
-| Anthropic | `AnthropicUsage` | `prompt_cache_creation_tokens` |
-| Google | `GoogleUsage` | `prompt_image_tokens` |
-| OpenAI Responses | `OpenAIResponsesUsage` | `prompt_cache_write_tokens`, `reasoning_tokens` |
-
-The matching completion and stream-end types (`AnthropicCompletion` /
-`AnthropicStreamEnd`, `GoogleCompletion` / `GoogleStreamEnd`, and the
-`OpenAIResponses*` pair) narrow `usage` to the provider's type, so the extra
-fields are visible to type checkers without a cast.
-
-## Configuration
-
-### Environment Variables
-
-```bash
-# OpenAI
-export OPENAI_API_KEY="sk-..."
-
-# Codex
-export CODEX_ACCESS_KEY="..."
-export CODEX_ACCOUNT_ID="..."
-
-# Azure OpenAI
-export AZURE_OPENAI_API_KEY="..."
-export AZURE_OPENAI_ENDPOINT="https://<resource>.openai.azure.com/"
-
-# Cerebras
-export CEREBRAS_API_KEY="csk-..."
-
-# Anthropic
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# Google Gemini
-export GEMINI_API_KEY="..."
-```
-
-### Model Parameters
-
-Set defaults when initializing or override per request:
+### Images
 
 ```python
-llm = ChatOpenAI(
-    model="gpt-4o",
-    temperature=0.7,
-    max_tokens=1000,
-)
+from llmify import ImageUrl, UserMessage
 
-response = await llm.invoke(
-    messages=[UserMessage(content="Hi")],
-    temperature=0.2,
-    max_tokens=500,
-)
+UserMessage(content=(
+    "What's in this image?",
+    ImageUrl(url="https://example.com/photo.jpg", detail="high"),
+))
 ```
 
-Supported parameters: `temperature`, `max_tokens`, `top_p`, `frequency_penalty`, `presence_penalty`, `stop`, `seed`.
+A `data:` URI works the same way and is sent as bytes.
+
+### Usage and reasoning
+
+`Usage` reports `input_tokens`, `output_tokens`, `cache_read_tokens`,
+`cache_write_tokens` and a `total_tokens` property. Every provider fills the same
+fields; a counter a provider does not report stays zero.
+
+### Errors and retries
+
+Provider failures arrive as llmify errors, whichever SDK raised them:
+
+| Error | Raised when |
+| --- | --- |
+| `AuthenticationError` | credentials rejected (401, 403) |
+| `CredentialsUnavailableError` | credentials missing or unusable, a new login is needed |
+| `RateLimitError` | 429 — retryable |
+| `RetryableError` | 5xx, 408, transport failures |
+| `OutOfCreditsError` | quota or billing exhausted |
+| `ContextLengthExceededError` | the input did not fit |
+| `ModelBehaviorError` | the answer did not fit the shape it was asked for |
+
+Retryable failures are retried with exponential backoff, honouring `Retry-After`
+when the provider sends one. A stream is only retried while nothing has been
+emitted yet, so output is never replayed.
+
+```python
+async def log_retry(event):
+    print(f"attempt {event.failed_attempt}/{event.max_attempts} failed, "
+          f"waiting {event.delay:.1f}s")
+
+model = ChatOpenAI("gpt-5.6", max_retries=3, on_retry=log_retry)
+```
 
 ## Providers
 
-### OpenAI
+Every constructor takes the model name first and falls back to the usual
+environment variable for credentials.
 
 ```python
-from llmify import ChatOpenAI
+from llmify import (
+    ChatOpenAI,            # OPENAI_API_KEY
+    ChatOpenAIResponses,   # OPENAI_API_KEY — the Responses API
+    ChatAnthropic,         # ANTHROPIC_API_KEY
+    ChatGoogle,            # GOOGLE_API_KEY, then GEMINI_API_KEY
+    ChatCerebras,          # CEREBRAS_API_KEY
+    ChatAzureOpenAI,       # AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
+    ChatAzureOpenAIResponses,
+    ChatCodex,             # a ChatGPT subscription
+    OpenAICompatible,      # anything else speaking OpenAI's API
+)
 
-llm = ChatOpenAI(
-    model="gpt-4o",
-    api_key="sk-...",  # optional if OPENAI_API_KEY is set
-    base_url="https://...",  # optional, defaults to the OpenAI API
-    default_headers={"X-My-Header": "value"},  # optional
+model = ChatOpenAI("gpt-5.6", api_key="sk-...", base_url="https://...")
+model = ChatAzureOpenAI("my-deployment", api_version="2024-10-01")
+model = OpenAICompatible("llama-3.3-70b", base_url="http://localhost:11434/v1")
+```
+
+**Reasoning models.** `ChatOpenAIResponses` (and `ChatCodex`, and
+`ChatAzureOpenAIResponses`) take `reasoning_effort` — `"none"`, `"minimal"`,
+`"low"`, `"medium"`, `"high"`, `"xhigh"` or `"max"` — and `reasoning_summary`.
+Which levels a model accepts differs, and an unsupported one comes back as a
+request error. Prefer the Responses API over `ChatOpenAI` for these models: it
+carries reasoning state between turns.
+
+**Codex.** A reverse-engineered endpoint that authenticates with a ChatGPT
+subscription rather than an API key; OpenAI neither documents nor supports it.
+If the [Codex CLI](https://github.com/openai/codex) is logged in, borrow its
+session:
+
+```python
+model = ChatCodex.from_cli("gpt-5.6-terra", reasoning_effort="high")
+```
+
+`from_cli` reads `~/.codex/auth.json` (honouring `CODEX_HOME`) and writes
+refreshed tokens back, so the CLI and llmify keep sharing one login — refresh
+tokens are single-use, so without the write-back the CLI's would go stale.
+Constructing `ChatCodex(...)` without arguments reads the same file but never
+writes it. A missing or unusable login raises `CredentialsUnavailableError`.
+
+## Model settings
+
+Common settings are named on every constructor:
+
+```python
+model = ChatOpenAI(
+    "gpt-5.6",
+    max_tokens=1000,
+    temperature=0.7,
+    top_p=0.9,
+    frequency_penalty=0.0,
+    presence_penalty=0.0,
+    stop=["\n\n"],
+    seed=42,
+    timeout=60.0,
+    max_retries=2,
+    default_headers={"X-Tenant": "acme"},
 )
 ```
 
-`api_key` also accepts an async callable (`() -> str`), which is awaited before every
-request — useful for short-lived tokens that need refreshing.
-
-### OpenAI Responses API
+Anything else is passed to pydantic-ai as a model setting, which is how
+provider-specific options stay available without llmify having to know them:
 
 ```python
-from llmify import ChatOpenAIResponses
-
-llm = ChatOpenAIResponses(
-    model="gpt-5.4-mini",
-    api_key="sk-...",  # optional if OPENAI_API_KEY is set
-    base_url="https://...",  # optional, defaults to the OpenAI API
-)
+model = ChatOpenAI("gpt-5.6", service_tier="flex", extra_body={"safety": "strict"})
 ```
 
-Use `ChatOpenAIResponses` when an endpoint exposes OpenAI's Responses API rather
-than the Chat Completions API. It supports the same llmify `invoke` and `stream`
-interface.
-
-For reasoning models, `reasoning_effort` sets how much the model thinks before
-answering — `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"` or `"xhigh"`:
-
-```python
-llm = ChatOpenAIResponses(model="gpt-5.4-mini", reasoning_effort="high")
-
-# per call, overriding the default above
-await llm.invoke(messages, reasoning_effort="low")
-```
-
-Which levels a model accepts differs — `"xhigh"` is limited to the newest
-reasoning models — and an unsupported level comes back as a request error.
-
-#### Native Responses state
-
-Responses calls return an `OpenAIResponsesCompletion` with an explicit,
-serializable `provider_state`. The state contains the response ID, the complete
-local replay window, and every native `response.output_item.done` item (including
-reasoning, messages, and function calls):
-
-```python
-from llmify import ChatOpenAIResponses, UserMessage
-
-llm = ChatOpenAIResponses(model="gpt-5.6", store=False)
-
-first = await llm.invoke([UserMessage(content="Inspect this problem")])
-second = await llm.invoke(
-    [UserMessage(content="Now refine the answer")],  # only new input
-    provider_state=first.provider_state,
-)
-```
-
-Stateless mode is the default. With `store=False`, encrypted reasoning is
-requested and replayed unchanged; it is opaque provider state, not readable
-chain-of-thought. Use `ContinuationMode.PREVIOUS_RESPONSE_ID` to send only new
-items when the previous response is available server-side. Instructions are
-retained locally and resent because `previous_response_id` does not carry them
-forward automatically.
-
-```python
-from llmify import ContinuationMode, ResponsesOptions
-
-llm = ChatOpenAIResponses(
-    model="gpt-5.6",
-    store=True,
-    responses_options=ResponsesOptions(
-        continuation_mode=ContinuationMode.PREVIOUS_RESPONSE_ID,
-    ),
-)
-```
-
-#### Complete local tool loop
-
-`invoke_with_tools` executes all function calls in a response, feeds every
-`function_call_output` back to the model, and repeats until a final answer is
-produced. FunctionTool exceptions become structured tool outputs so the model
-can recover. `max_tool_rounds` bounds the loop. Dict schemas and
-`RawSchemaTool` values need a `tool_executor` callback because they contain no
-implementation.
-
-```python
-from llmify import UserMessage, tool
-
-@tool
-def lookup(query: str) -> str:
-    return f"result for {query}"
-
-result = await llm.invoke_with_tools(
-    [UserMessage(content="Look up alpha and beta, then compare them")],
-    tools=[lookup],
-    max_tool_rounds=8,
-)
-```
-
-#### Reasoning summaries and native stream events
-
-Set `reasoning_summary="auto"`, `"concise"`, or `"detailed"`. Summaries arrive
-as `StreamReasoningSummaryDelta` and are never mixed into `StreamTextDelta`.
-Responses streams also expose `StreamOutputItemAdded` and
-`StreamOutputItemDone`; the final `OpenAIResponsesStreamEnd` always carries the
-assembled provider state. These Responses-only events extend the neutral
-`StreamProviderEvent` hook rather than changing other providers' event models.
-
-Usage is returned as `OpenAIResponsesUsage`, adding `reasoning_tokens` and
-`prompt_cache_write_tokens` to the common token fields.
-
-#### Prompt caching
-
-Use a stable `prompt_cache_key`; keep instructions and tool definitions stable
-and ordered. On models supporting explicit breakpoints, `cache=True` marks the
-end of a message as reusable provider input:
-
-```python
-from llmify import PromptCacheOptions, ResponsesOptions, SystemMessage
-
-options = ResponsesOptions(
-    prompt_cache_key="tenant:acme:agent-v1",
-    prompt_cache_options=PromptCacheOptions(mode="explicit", ttl="30m"),
-)
-llm = ChatOpenAIResponses(model="gpt-5.6", responses_options=options)
-messages = [SystemMessage(content=large_stable_instructions, cache=True)]
-```
-
-Explicit cache options and breakpoints are model-dependent; older models can
-reject them. Automatic prompt caching remains available without these options.
-
-#### WebSocket transport
-
-Install the optional transport dependency and select it explicitly:
-
-```console
-pip install "py-llmify[websocket]"
-```
-
-```python
-from llmify import ResponsesOptions, WebSocketResponsesTransport
-
-llm = ChatOpenAIResponses(
-    model="gpt-5.6",
-    transport=WebSocketResponsesTransport(),
-    responses_options=ResponsesOptions(
-        continuation_mode="previous_response_id",
-    ),
-)
-```
-
-HTTP/SSE remains the default. A WebSocket `invoke_with_tools` call keeps one
-connection open across all model/tool rounds and sends incremental tool outputs
-with `previous_response_id`. A standalone WebSocket `invoke` opens one scoped
-connection; when `store=False`, a later standalone invocation safely falls back
-to the state's full local replay window because connection-local state no longer
-exists.
-
-Transport is a port, not a mode flag. `HTTPResponsesTransport` is the default,
-`WebSocketResponsesTransport` is opt-in, and custom implementations can provide
-the `ResponsesTransport`/`ResponsesSession` protocols for testing or alternate
-wire transports. Continuation knowledge remains scoped to the session that owns
-it.
-
-### Codex
-
-```python
-from llmify import ChatCodex
-
-llm = ChatCodex(
-    model="gpt-5.6-terra",
-    api_key="...",  # optional if CODEX_ACCESS_KEY is set
-    chatgpt_account_id="...",
-    reasoning_effort="high",  # optional
-)
-```
-
-`ChatCodex` specializes `ChatOpenAIResponses` for the Codex endpoint and
-configures the required `ChatGPT-Account-Id` header from `chatgpt_account_id`.
-The endpoint URL is fixed by the provider and does not need to be supplied by
-callers.
-
-This is a reverse-engineered endpoint: it authenticates with a ChatGPT
-subscription rather than an API key, and OpenAI does not document or support it.
-
-#### Borrowing the Codex CLI login
-
-If the [Codex CLI](https://github.com/openai/codex) is installed and logged in
-(`codex login`), its session can be used directly — no environment variables:
-
-```python
-llm = ChatCodex.from_cli(model="gpt-5.6-terra", reasoning_effort="high")
-```
-
-`from_cli` takes the same model options as the constructor — only `api_key` and
-`chatgpt_account_id` come from the login instead.
-
-This reads `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`) for the account id
-and access token — no network access, no writes. From the request path onwards
-the token is refreshed as it approaches expiry, and the rotated tokens are
-written back so the CLI keeps working. The approach is borrowed from
-[llm-openai-via-codex](https://github.com/simonw/llm-openai-via-codex).
-
-For the credentials themselves, a different `auth.json`, or one token provider
-shared across several clients, compose the two pieces yourself:
-
-```python
-from llmify import ChatCodex, CodexCliAuth
-from llmify.providers.codex import read_codex_credentials
-
-credentials = read_codex_credentials()  # or read_codex_credentials(auth_path=...)
-print(credentials.expires_in)           # seconds until the access token expires
-
-auth = CodexCliAuth(credentials)
-llm = ChatCodex(
-    model="gpt-5.6-terra",
-    api_key=auth,                       # awaited before every request
-    chatgpt_account_id=auth.account_id,
-)
-```
-
-`read_codex_credentials()` only ever reads the file. Its async counterpart
-`refresh_codex_credentials()` is what performs the OAuth refresh and the
-write-back — `CodexCliAuth` calls it from the request path when the token is
-about to expire, and applications that want to control that themselves can call
-it directly.
-
-A missing or unusable login raises `CodexCredentialsError`, a subclass of
-`CredentialsUnavailableError`.
-
-Full runnable examples: `examples/providers/codex/from_cli.py`,
-`examples/providers/codex/manual_cli_auth.py`, and
-`examples/providers/codex/responses_websocket.py`
-
-### Azure OpenAI
-
-```python
-from llmify import ChatAzureOpenAI
-
-llm = ChatAzureOpenAI(
-    model="gpt-4o",
-    api_key="...",           # optional if AZURE_OPENAI_API_KEY is set
-    azure_endpoint="https://<resource>.openai.azure.com/",  # optional if env var is set
-)
-```
-
-For Azure's Responses API, use `ChatAzureOpenAIResponses`:
-
-```python
-from llmify import ChatAzureOpenAIResponses
-
-llm = ChatAzureOpenAIResponses(
-    model="my-gpt-deployment",
-    api_key="...",           # optional if AZURE_OPENAI_API_KEY is set
-    azure_endpoint="https://<resource>.openai.azure.com/",  # optional if env var is set
-    reasoning_effort="high",  # optional
-)
-```
-
-It provides the same `invoke`, `stream`, structured-output, and tool-calling
-interface as `ChatOpenAIResponses` and uses Azure's `/openai/v1/` endpoint.
-
-### Anthropic
-
-```python
-from llmify import ChatAnthropic
-
-llm = ChatAnthropic(
-    model="claude-sonnet-4-20250514",
-    api_key="sk-ant-...",  # optional if ANTHROPIC_API_KEY is set
-)
-```
-
-The Anthropic provider supports the same API surface — `invoke`, `stream`, structured output, and tool calling — all mapped to the Anthropic messages API under the hood.
-
-`invoke` returns an `AnthropicCompletion` and `stream` ends with an
-`AnthropicStreamEnd`; both carry `AnthropicUsage`, which adds
-`prompt_cache_creation_tokens` to the common token fields.
-
-### Cerebras
-
-```python
-from llmify import ChatCerebras
-
-llm = ChatCerebras(
-    model="gpt-oss-120b",
-    api_key="csk-...",  # optional if CEREBRAS_API_KEY is set
-)
-```
-
-The Cerebras provider uses Cerebras' OpenAI-compatible API and supports `invoke`, `stream`, structured output, and tool calling.
-
-### Google Gemini
-
-```python
-from llmify import ChatGoogle
-
-llm = ChatGoogle(
-    model="gemini-3.5-flash",
-    api_key="...",  # optional if GEMINI_API_KEY is set
-)
-```
-
-The Google provider supports the same API surface: `invoke`, `stream`, structured output, and tool calling.
-
-`invoke` returns a `GoogleCompletion` and `stream` ends with a
-`GoogleStreamEnd`; both carry `GoogleUsage`, which adds `prompt_image_tokens`
-to the common token fields.
+See [pydantic-ai's model settings](https://ai.pydantic.dev/api/settings/) for
+the full list.
 
 ## Credits
 
-Inspired by [LangChain](https://github.com/langchain-ai/langchain) and [browser-use](https://github.com/browser-use/browser-use).
+Built on [pydantic-ai](https://github.com/pydantic/pydantic-ai). Inspired by
+[LangChain](https://github.com/langchain-ai/langchain) and
+[browser-use](https://github.com/browser-use/browser-use).
 
 ## License
 
