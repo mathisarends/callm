@@ -34,6 +34,18 @@ class ContextLengthExceededError(LLMifyError):
         super().__init__(message)
 
 
+class ModelBehaviorError(LLMifyError):
+    """Raised when the model's answer does not fit the shape it was asked for.
+
+    A structured call that came back without the output tool, or with arguments
+    that fail validation, is the model's mistake rather than the transport's, so
+    it is not retryable.
+    """
+
+    def __init__(self, message: str = "Unexpected model behaviour"):
+        super().__init__(message)
+
+
 class AuthenticationError(LLMifyError):
     """Raised when the API key or credentials are invalid or missing."""
 

@@ -9,7 +9,6 @@ description = "A minimal, type-safe Python library for LLM chat completions acro
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.28.1",
     "pydantic>=2.12.5",
     "pydantic-ai-slim>=2.46.0",
 ]
