@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any
+
 from .exceptions import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -28,13 +30,53 @@ from .ports import (
     Usage,
     UserMessage,
 )
+from .providers import _MODULE_BY_NAME as _PROVIDER_NAMES
 from .retries import RetryCallback, RetryEvent
 from .tools import FunctionTool, tool
+
+if TYPE_CHECKING:
+    # Redundant aliases: these are re-exports, resolved at runtime by __getattr__.
+    from .providers import ChatAnthropic as ChatAnthropic
+    from .providers import ChatAzureOpenAI as ChatAzureOpenAI
+    from .providers import ChatAzureOpenAIResponses as ChatAzureOpenAIResponses
+    from .providers import ChatCerebras as ChatCerebras
+    from .providers import ChatCodex as ChatCodex
+    from .providers import ChatGoogle as ChatGoogle
+    from .providers import ChatOpenAI as ChatOpenAI
+    from .providers import ChatOpenAIResponses as ChatOpenAIResponses
+    from .providers import CodexCliCredentials as CodexCliCredentials
+    from .providers import OpenAICodexCredentials as OpenAICodexCredentials
+    from .providers import OpenAICompatible as OpenAICompatible
+    from .providers import ReasoningEffort as ReasoningEffort
+
+
+def __getattr__(name: str) -> Any:
+    if name in _PROVIDER_NAMES:
+        from . import providers
+
+        return getattr(providers, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    # PEP 562: without this, the lazily exported names are invisible to dir()
+    # and therefore to REPL and IDE completion.
+    return sorted({*globals(), *__all__})
+
 
 __all__ = [
     "AssistantMessage",
     "AuthenticationError",
+    "ChatAnthropic",
+    "ChatAzureOpenAI",
+    "ChatAzureOpenAIResponses",
+    "ChatCerebras",
+    "ChatCodex",
+    "ChatGoogle",
     "ChatModel",
+    "ChatOpenAI",
+    "ChatOpenAIResponses",
+    "CodexCliCredentials",
     "ContextLengthExceededError",
     "CredentialsUnavailableError",
     "FunctionTool",
@@ -47,8 +89,11 @@ __all__ = [
     "ModelEventType",
     "ModelResponse",
     "ModelTool",
+    "OpenAICodexCredentials",
+    "OpenAICompatible",
     "OutOfCreditsError",
     "RateLimitError",
+    "ReasoningEffort",
     "RetryCallback",
     "RetryEvent",
     "RetryableError",
