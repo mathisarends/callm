@@ -24,6 +24,7 @@ from pydantic_ai.usage import RequestUsage
 
 from llmify import ports
 from llmify._adapter import PydanticAIModel, _mapped_error, _model_messages, _usage
+from llmify.retries import retry_delay
 from llmify.exceptions import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -332,6 +333,18 @@ def test_http_failures_map_onto_the_taxonomy(
     error = ModelHTTPError(status_code=status, model_name="m", body=body)
 
     assert isinstance(_mapped_error(error), expected)
+
+
+def test_a_rate_limit_carries_the_providers_retry_after() -> None:
+    error = ModelHTTPError(
+        status_code=429, model_name="m", body="slow down", headers={"Retry-After": "12"}
+    )
+
+    mapped = _mapped_error(error)
+
+    assert isinstance(mapped, RateLimitError)
+    assert mapped.retry_after == 12
+    assert retry_delay(mapped, 0) == 12
 
 
 def test_an_unrecognised_failure_is_left_alone() -> None:

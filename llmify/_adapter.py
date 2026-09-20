@@ -389,7 +389,7 @@ def _from_status(error: ModelHTTPError) -> Exception:
     if status in (401, 403):
         return AuthenticationError(str(error))
     if status == 429:
-        return RateLimitError(str(error))
+        return RateLimitError(str(error), retry_after=error.retry_after)
     if status == 402 or any(marker in body for marker in _OUT_OF_CREDITS_MARKERS):
         return OutOfCreditsError(str(error))
     if any(marker in body for marker in _CONTEXT_LENGTH_MARKERS):
