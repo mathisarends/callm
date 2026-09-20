@@ -4,26 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "py-llmify"
-version = "0.10.0"
-description = "A minimal, fast, and type-safe Python library for LLM chat completions across multiple providers"
+version = "0.12.0"
+description = "A minimal, type-safe Python library for LLM chat completions across multiple providers"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.12.5",
+    "pydantic-ai-slim>=2.46.0",
 ]
 
 [project.optional-dependencies]
-openai = ["openai>=2.29.0"]
-websocket = ["openai[realtime]>=2.29.0"]
-cerebras = ["openai>=2.14.0"]
-anthropic = ["anthropic>=0.86.0"]
-google = ["google-genai>=2.10.0"]
-all = [
-    "openai[realtime]>=2.29.0",
-    "anthropic>=0.86.0",
-    "google-genai>=2.10.0",
-]
+openai = ["pydantic-ai-slim[openai]>=2.46.0"]
+cerebras = ["pydantic-ai-slim[cerebras]>=2.46.0"]
+anthropic = ["pydantic-ai-slim[anthropic]>=2.46.0"]
+google = ["pydantic-ai-slim[google]>=2.46.0"]
+all = ["pydantic-ai-slim[openai,cerebras,anthropic,google]>=2.46.0"]
 
 [dependency-groups]
 dev = [
