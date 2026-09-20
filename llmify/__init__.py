@@ -28,6 +28,7 @@ from .ports import (
     UserMessage,
 )
 from .retries import RetryCallback, RetryEvent
+from .tools import FunctionTool, tool
 
 __all__ = [
     "AssistantMessage",
@@ -35,6 +36,7 @@ __all__ = [
     "ChatModel",
     "ContextLengthExceededError",
     "CredentialsUnavailableError",
+    "FunctionTool",
     "ImageUrl",
     "LLMifyError",
     "Message",
@@ -57,4 +59,5 @@ __all__ = [
     "ToolResultMessage",
     "Usage",
     "UserMessage",
+    "tool",
 ]
