@@ -1,31 +1,32 @@
+"""Structured output: hand `call` a Pydantic model, get one back."""
+
 import asyncio
-from llmify import ChatOpenAI, UserMessage
-from pydantic import BaseModel
+
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+
+from llmify import ChatOpenAI, UserMessage
 
 load_dotenv(override=True)
 
 
-class Person(BaseModel):
+class Recipe(BaseModel):
     name: str
-    age: int
-    occupation: str
+    minutes: int = Field(description="Total time from start to serving")
+    ingredients: list[str]
 
 
-async def main():
-    llm = ChatOpenAI(model="gpt-4o")
+async def main() -> None:
+    async with ChatOpenAI("gpt-5.6") as model:
+        response = await model(
+            [UserMessage(content="Give me a recipe for pancakes.")],
+            output_format=Recipe,
+        )
 
-    response = await llm.invoke(
-        [
-            UserMessage(
-                content="Extract: Anna is 28 years old and works as a Software Engineer"
-            )
-        ],
-        output_format=Person,
-    )
-
-    person = response.completion
-    print(f"Name: {person.name}, Age: {person.age}, Job: {person.occupation}")
+    recipe = response.completion
+    print(f"{recipe.name} ({recipe.minutes} min)")
+    for ingredient in recipe.ingredients:
+        print(f"  - {ingredient}")
 
 
 if __name__ == "__main__":
