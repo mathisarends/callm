@@ -1,1 +1,0 @@
-"""OpenAI Responses transport tests."""
