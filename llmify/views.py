@@ -1,30 +1,24 @@
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from llmify.messages import ToolCall
+from .messages import ToolCall
 
 
-class ChatInvokeUsage(BaseModel):
-    """Token usage every provider reports.
-
-    Providers with extra counters subclass this (see ``AnthropicUsage``,
-    ``GoogleUsage``, ``OpenAIResponsesUsage``) instead of adding fields here
-    that only one backend ever fills.
-    """
+class ChatUsage(BaseModel):
+    model_config = ConfigDict(frozen=True)
 
     prompt_tokens: int
-    prompt_cached_tokens: int | None = None
     completion_tokens: int
     total_tokens: int
+    prompt_cached_tokens: int | None = None
 
 
-class ChatInvokeCompletion[T](BaseModel):
-    completion: T
+class ChatCompletion[OutputT](BaseModel):
+    completion: OutputT
     thinking: str | None = None
-    redacted_thinking: str | None = None
-    usage: ChatInvokeUsage | None = None
+    usage: ChatUsage | None = None
     stop_reason: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
 
@@ -40,27 +34,29 @@ class StreamTextDelta(BaseModel):
     delta: str
 
 
-class StreamProviderEvent(BaseModel):
-    """Extension point for provider-specific streaming events."""
-
-    type: str
-
-
 class StreamToolCall(BaseModel):
-    """Emitted once a tool call's arguments JSON is fully assembled."""
-
     type: Literal[StreamEventType.TOOL_CALL] = StreamEventType.TOOL_CALL
     tool_call: ToolCall
 
 
 class StreamEnd(BaseModel):
-    """Final event. Always emitted exactly once at the end of the stream."""
-
     type: Literal[StreamEventType.END] = StreamEventType.END
-    stop_reason: str | None = None
-    usage: ChatInvokeUsage | None = None
-    tool_calls: list[ToolCall] = Field(default_factory=list)
     completion: str = ""
+    thinking: str | None = None
+    usage: ChatUsage | None = None
+    stop_reason: str | None = None
+    tool_calls: list[ToolCall] = Field(default_factory=list)
 
 
-type StreamEvent = StreamTextDelta | StreamProviderEvent | StreamToolCall | StreamEnd
+StreamEvent = StreamTextDelta | StreamToolCall | StreamEnd
+
+
+__all__ = [
+    "ChatCompletion",
+    "ChatUsage",
+    "StreamEnd",
+    "StreamEvent",
+    "StreamEventType",
+    "StreamTextDelta",
+    "StreamToolCall",
+]

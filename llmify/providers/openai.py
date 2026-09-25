@@ -1,79 +1,77 @@
 from collections.abc import Awaitable, Callable
-from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
-import httpx
+from openai import AsyncOpenAI
+from pydantic_ai.models.openai import OpenAIResponsesModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
-try:
-    from openai import AsyncOpenAI
-except ImportError:
-    raise ImportError(
-        "The 'openai' package is required for ChatOpenAI. "
-        "Install it with: pip install py-llmify[openai]"
-    )
+from llmify.base import PydanticAIChatModel
+from llmify.providers.websocket import WebSocketChatOpenAI
 
-from llmify.providers._openai_utils import resolve_api_key
-from llmify.providers.openai_compatible import OpenAICompatible
-from llmify.retries import RetryCallback
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh"]
+Transport = Literal["http", "websocket"]
 
 
-class OpenAIModel(StrEnum):
-    GPT_5_6_SOL = "gpt-5.6-sol"
-    GPT_5_6_TERRA = "gpt-5.6-terra"
-    GPT_5_6_LUNA = "gpt-5.6-luna"
+class ChatOpenAI(PydanticAIChatModel):
+    """OpenAI chat model implemented exclusively through the Responses API."""
 
-    GPT_5_5 = "gpt-5.5"
-    GPT_5_5_PRO = "gpt-5.5-pro"
-
-    GPT_5_4 = "gpt-5.4"
-    GPT_5_4_PRO = "gpt-5.4-pro"
-    GPT_5_4_MINI = "gpt-5.4-mini"
-    GPT_5_4_NANO = "gpt-5.4-nano"
-
-    GPT_5_3_CODEX = "gpt-5.3-codex"
-
-
-class ChatOpenAI(OpenAICompatible):
     def __init__(
         self,
-        model: str | OpenAIModel = OpenAIModel.GPT_5_6_TERRA,
+        model: str,
+        *,
         api_key: str | Callable[[], Awaitable[str]] | None = None,
         base_url: str | None = None,
+        transport: Transport = "http",
         max_tokens: int | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
-        frequency_penalty: float | None = None,
-        presence_penalty: float | None = None,
-        stop: str | list[str] | None = None,
-        seed: int | None = None,
-        response_format: dict | None = None,
-        timeout: float | httpx.Timeout | None = 60.0,
+        reasoning_effort: ReasoningEffort | None = None,
+        verbosity: Literal["low", "medium", "high"] | None = None,
+        store: bool = False,
+        timeout: float | None = 60.0,
         max_retries: int = 2,
-        on_retry: RetryCallback | None = None,
         default_headers: dict[str, str] | None = None,
-        **kwargs: Any,
-    ):
-        super().__init__(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-            stop=stop,
-            seed=seed,
-            response_format=response_format,
-            timeout=timeout,
-            max_retries=max_retries,
-            on_retry=on_retry,
-            **kwargs,
-        )
-        api_key = resolve_api_key(api_key, "OPENAI_API_KEY", "OpenAI")
+        **model_settings: Any,
+    ) -> None:
+        if transport not in {"http", "websocket"}:
+            raise ValueError("transport must be 'http' or 'websocket'.")
 
-        self._client = AsyncOpenAI(
+        client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,
-            max_retries=0,
+            max_retries=max_retries,
             default_headers=default_headers,
         )
+        provider = OpenAIProvider(openai_client=client)
+        backend = OpenAIResponsesModel(model, provider=provider)
+        defaults = {
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "openai_reasoning_effort": reasoning_effort,
+            "openai_text_verbosity": verbosity,
+            "openai_store": store,
+            **model_settings,
+        }
+        super().__init__(model, backend, default_settings=defaults)
+        self._client = client
+        self._websocket = WebSocketChatOpenAI(self) if transport == "websocket" else None
+
+    async def call(self, *args: Any, **kwargs: Any):
+        if self._websocket is not None:
+            return await self._websocket.call(*args, **kwargs)
+        return await super().call(*args, **kwargs)
+
+    def stream(self, *args: Any, **kwargs: Any):
+        if self._websocket is not None:
+            return self._websocket.stream(*args, **kwargs)
+        return super().stream(*args, **kwargs)
+
+    async def aclose(self) -> None:
+        if self._websocket is not None:
+            await self._websocket.aclose()
+        await self._client.close()
+
+
+__all__ = ["ChatOpenAI", "ReasoningEffort", "Transport"]
