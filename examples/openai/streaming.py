@@ -1,9 +1,3 @@
-"""Streaming: deltas as they arrive, then the finished turn.
-
-A stream always ends with exactly one `ModelResponse` — the same value `call`
-would have returned — so there is no need to accumulate the deltas yourself.
-"""
-
 import asyncio
 
 from dotenv import load_dotenv

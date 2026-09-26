@@ -1,10 +1,3 @@
-"""A complete tool loop.
-
-The whole loop is: ask, append the turn, run whatever the model called, repeat.
-`as_assistant_message` keeps the provider's own state on the history, so a
-reasoning model does not lose its train of thought across the round-trip.
-"""
-
 import asyncio
 
 from dotenv import load_dotenv

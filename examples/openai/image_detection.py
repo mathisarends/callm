@@ -1,5 +1,3 @@
-"""Images: a URL or an inline `data:` URI, alongside the text."""
-
 import asyncio
 import base64
 import sys

@@ -1,12 +1,3 @@
-"""Codex: talking to the endpoint with a ChatGPT subscription.
-
-Borrows the Codex CLI's login (`codex login`) read-only: refreshed tokens live
-only as long as the process. To persist them, pass a `credential_source`; see
-pydantic-ai's docs on persisting Codex credentials.
-
-This is a reverse-engineered endpoint. OpenAI neither documents nor supports it.
-"""
-
 import asyncio
 
 from llmify import ChatCodex, CredentialsUnavailableError, UserMessage

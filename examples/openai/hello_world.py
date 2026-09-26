@@ -1,5 +1,3 @@
-"""The smallest thing llmify does: one turn, one answer."""
-
 import asyncio
 
 from dotenv import load_dotenv

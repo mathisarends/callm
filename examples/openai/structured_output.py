@@ -1,5 +1,3 @@
-"""Structured output: hand `call` a Pydantic model, get one back."""
-
 import asyncio
 
 from dotenv import load_dotenv

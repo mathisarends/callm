@@ -1,9 +1,3 @@
-"""Every provider, side by side.
-
-They differ only in what it takes to reach them: past the constructor each one
-is the same `ChatModel`, so the loop below does not care which it is holding.
-"""
-
 import asyncio
 
 from dotenv import load_dotenv
