@@ -1,3 +1,5 @@
+from typing import assert_type
+
 import pytest
 from pydantic import BaseModel
 from pydantic_ai.exceptions import (
@@ -297,12 +299,44 @@ async def test_unparsable_native_text_is_a_model_behaviour_error() -> None:
         await model.call([UserMessage(content="?")], output_format=Answer)
 
 
-async def test_a_turn_that_only_calls_tools_names_them_in_the_error() -> None:
+async def test_a_turn_that_only_calls_tools_has_no_completion_yet() -> None:
     model = model_for(ToolCallPart("calc", "{}", "tc1"))
 
-    with pytest.raises(
-        ModelBehaviorError, match="no Answer to parse; it called 'calc'"
-    ):
+    response = await model.call(
+        [UserMessage(content="?")], tools=[ModelTool(name="calc")], output_format=Answer
+    )
+
+    assert_type(response, LlmifyResponse[Answer | None])
+    assert response.completion is None
+    assert [call.name for call in response.tool_calls] == ["calc"]
+
+
+async def test_text_beside_a_tool_call_is_not_mistaken_for_the_answer() -> None:
+    model = model_for(
+        TextPart("Let me calculate that."), ToolCallPart("calc", "{}", "tc1")
+    )
+
+    response = await model.call(
+        [UserMessage(content="?")], tools=[ModelTool(name="calc")], output_format=Answer
+    )
+
+    assert response.completion is None
+    assert [call.name for call in response.tool_calls] == ["calc"]
+
+
+async def test_without_tools_a_structured_completion_is_never_none() -> None:
+    model = model_for(TextPart('{"value": 1, "unit": "x"}'))
+
+    response = await model.call([UserMessage(content="?")], output_format=Answer)
+
+    assert_type(response, LlmifyResponse[Answer])
+    assert response.completion == Answer(value=1, unit="x")
+
+
+async def test_an_empty_structured_turn_is_a_model_behaviour_error() -> None:
+    model = model_for()
+
+    with pytest.raises(ModelBehaviorError, match="no Answer to parse"):
         await model.call([UserMessage(content="?")], output_format=Answer)
 
 

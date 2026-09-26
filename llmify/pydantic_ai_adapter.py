@@ -175,10 +175,20 @@ class PydanticAIModel(ChatModel):
         self,
         messages: Sequence[Message],
         *,
-        tools: Sequence[ModelTool] = (),
+        tools: tuple[()] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T],
     ) -> ModelResponse[T]: ...
+
+    @overload
+    async def call[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool],
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T | None]: ...
 
     @overload
     async def call(
@@ -197,7 +207,7 @@ class PydanticAIModel(ChatModel):
         tools: Sequence[ModelTool] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
-    ) -> ModelResponse[T] | ModelResponse[str]:
+    ) -> ModelResponse[T] | ModelResponse[T | None] | ModelResponse[str]:
         parameters = self._request_parameters(tools, output_format)
         history, settings = self._request_context(
             messages,
@@ -422,10 +432,22 @@ def _assistant_parts(message: AssistantMessage) -> list[ModelResponsePart]:
     return parts
 
 
+@overload
+def _response(
+    response: PydanticModelResponse, output_format: None
+) -> ModelResponse[str]: ...
+
+
+@overload
+def _response[T: BaseModel](
+    response: PydanticModelResponse, output_format: type[T]
+) -> ModelResponse[T | None]: ...
+
+
 def _response[T: BaseModel](
     response: PydanticModelResponse,
     output_format: type[T] | None,
-) -> ModelResponse[T] | ModelResponse[str]:
+) -> ModelResponse[T | None] | ModelResponse[str]:
     text = "".join(
         part.content for part in response.parts if isinstance(part, TextPart)
     )
@@ -454,10 +476,12 @@ def _structured[T: BaseModel](
     output_format: type[T],
     text: str,
     tool_calls: tuple[ToolCall, ...],
-) -> tuple[T, tuple[ToolCall, ...]]:
+) -> tuple[T | None, tuple[ToolCall, ...]]:
     """Parse the structured answer from the output tool's call or native JSON text.
 
-    The output tool's call is split off the model's real tool calls.
+    The output tool's call is split off the model's real tool calls. A turn that
+    calls tools without answering yet is unfinished rather than wrong: its
+    completion is ``None`` until the tool results come back.
     """
     answer = next((c for c in tool_calls if c.name == OUTPUT_TOOL_NAME), None)
     if answer is not None:
@@ -465,16 +489,19 @@ def _structured[T: BaseModel](
         tool_calls = tuple(c for c in tool_calls if c is not answer)
     elif text.strip():
         payload, source = text, "answer"
+    elif tool_calls:
+        return None, tool_calls
     else:
-        called = ", ".join(repr(c.name) for c in tool_calls)
         raise ModelBehaviorError(
-            f"The model returned no {output_format.__name__} to parse"
-            + (f"; it called {called} instead." if called else ".")
+            f"The model returned no {output_format.__name__} to parse."
         )
 
     try:
         parsed = output_format.model_validate_json(payload)
     except ValidationError as error:
+        if answer is None and tool_calls:
+            # Text next to a tool call is the model thinking aloud, not an answer.
+            return None, tool_calls
         raise ModelBehaviorError(
             f"The model's {source} is not a valid {output_format.__name__}: {error}"
         ) from error

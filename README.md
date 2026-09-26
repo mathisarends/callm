@@ -107,7 +107,7 @@ A `ModelResponse` carries:
 
 | Field | What it is |
 | --- | --- |
-| `completion` | the text, or the parsed object when `output_format` was given |
+| `completion` | the text, or the parsed object when `output_format` was given (`None` while a turn with `tools` is still calling them) |
 | `thinking` | the reasoning trace, when the model exposed one |
 | `tool_calls` | what the model wants run before it can finish |
 | `usage` | input, output and cache token counts |

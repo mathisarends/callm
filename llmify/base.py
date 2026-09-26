@@ -102,10 +102,20 @@ class ChatModel(ABC):
         self,
         messages: Sequence[Message],
         *,
-        tools: Sequence[ModelTool] = (),
+        tools: tuple[()] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T],
     ) -> ModelResponse[T]: ...
+
+    @overload
+    async def call[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool],
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T | None]: ...
 
     @overload
     async def call(
@@ -125,7 +135,7 @@ class ChatModel(ABC):
         tools: Sequence[ModelTool] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
-    ) -> ModelResponse[T] | ModelResponse[str]:
+    ) -> ModelResponse[T] | ModelResponse[T | None] | ModelResponse[str]:
         """Run one turn and return it whole."""
 
     @abstractmethod
@@ -147,10 +157,20 @@ class ChatModel(ABC):
         self,
         messages: Sequence[Message],
         *,
-        tools: Sequence[ModelTool] = (),
+        tools: tuple[()] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T],
     ) -> ModelResponse[T]: ...
+
+    @overload
+    async def __call__[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool],
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T | None]: ...
 
     @overload
     async def __call__(
@@ -169,7 +189,7 @@ class ChatModel(ABC):
         tools: Sequence[ModelTool] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
-    ) -> ModelResponse[T] | ModelResponse[str]:
+    ) -> ModelResponse[T] | ModelResponse[T | None] | ModelResponse[str]:
         """Convenience alias for ``call``, so ``await model(messages)`` reads as a call."""
         return await self.call(
             messages,

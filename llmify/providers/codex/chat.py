@@ -198,10 +198,20 @@ class ChatCodex(PydanticAIModel):
         self,
         messages: Sequence[Message],
         *,
-        tools: Sequence[ModelTool] = (),
+        tools: tuple[()] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T],
     ) -> ModelResponse[T]: ...
+
+    @overload
+    async def call[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool],
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T | None]: ...
 
     @overload
     async def call(
@@ -220,7 +230,7 @@ class ChatCodex(PydanticAIModel):
         tools: Sequence[ModelTool] = (),
         tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
-    ) -> ModelResponse[T] | ModelResponse[str]:
+    ) -> ModelResponse[T] | ModelResponse[T | None] | ModelResponse[str]:
         try:
             return await super().call(
                 messages,
