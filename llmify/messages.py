@@ -1,198 +1,89 @@
+import json
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
-
-
-def _truncate(text: str, max_length: int = 50) -> str:
-    if len(text) <= max_length:
-        return text
-    return text[: max_length - 3] + "..."
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class ContentPartTextParam(BaseModel):
-    text: str
-    type: Literal["text"] = "text"
-
-    def __str__(self) -> str:
-        return f"Text: {_truncate(self.text)}"
-
-    def __repr__(self) -> str:
-        return f"ContentPartTextParam(text={_truncate(self.text)})"
+class MessageType(StrEnum):
+    SYSTEM = "system"
+    USER = "user"
+    ASSISTANT = "assistant"
+    TOOL_RESULT = "tool_result"
 
 
-class ContentPartRefusalParam(BaseModel):
-    refusal: str
-    type: Literal["refusal"] = "refusal"
+class Frozen(BaseModel):
+    """Base for every value in the contract.
 
-    def __str__(self) -> str:
-        return f"Refusal: {_truncate(self.refusal)}"
+    Immutable, so a message list can be shared between requests without one of
+    them editing another's history.
+    """
 
-    def __repr__(self) -> str:
-        return f"ContentPartRefusalParam(refusal={_truncate(repr(self.refusal), 50)})"
+    model_config = ConfigDict(frozen=True)
+
+
+class ToolCall(Frozen):
+    id: str
+    name: str
+    arguments: str = "{}"
+    """The model's arguments as raw JSON, exactly as it emitted them."""
+
+    @property
+    def parsed_arguments(self) -> dict[str, Any]:
+        return json.loads(self.arguments)
 
 
 SupportedImageMediaType = Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
 
 
-class ImageURL(BaseModel):
+class ImageUrl(Frozen):
+    """An image, either by URL or inline as a ``data:`` URI."""
+
     url: str
-    detail: Literal["auto", "low", "high"] = "auto"
-    # needed for Anthropic
     media_type: SupportedImageMediaType = "image/png"
-
-    @staticmethod
-    def _format_url(url: str, max_length: int = 50) -> str:
-        if url.startswith("data:"):
-            media_type = url.split(";")[0].split(":")[1] if ";" in url else "image"
-            return f"<base64 {media_type}>"
-        return _truncate(url, max_length)
-
-    def __str__(self) -> str:
-        url_display = self._format_url(self.url)
-        return f"🖼️  Image[{self.media_type}, detail={self.detail}]: {url_display}"
-
-    def __repr__(self) -> str:
-        url_repr = self._format_url(self.url, 30)
-        return f"ImageURL(url={url_repr!r}, detail={self.detail!r}, media_type={self.media_type!r})"
+    detail: Literal["auto", "low", "high"] = "auto"
 
 
-class ContentPartImageParam(BaseModel):
-    image_url: ImageURL
-    type: Literal["image_url"] = "image_url"
-
-    def __str__(self) -> str:
-        return str(self.image_url)
-
-    def __repr__(self) -> str:
-        return f"ContentPartImageParam(image_url={self.image_url!r})"
-
-
-class Function(BaseModel):
-    arguments: str
-    name: str
-
-    def __str__(self) -> str:
-        args_preview = _truncate(self.arguments, 80)
-        return f"{self.name}({args_preview})"
-
-    def __repr__(self) -> str:
-        args_repr = _truncate(repr(self.arguments), 50)
-        return f"Function(name={self.name!r}, arguments={args_repr})"
-
-
-class ToolCall(BaseModel):
-    id: str
-    function: Function
-    type: Literal["function"] = "function"
-    provider_metadata: dict[str, object] = Field(default_factory=dict, repr=False)
-
-    def __str__(self) -> str:
-        return f"ToolCall[{self.id}]: {self.function}"
-
-    def __repr__(self) -> str:
-        return f"ToolCall(id={self.id!r}, function={self.function!r})"
-
-
-class _MessageRole(StrEnum):
-    USER = "user"
-    SYSTEM = "system"
-    ASSISTANT = "assistant"
-    TOOL = "tool"
-
-
-class _MessageBase(BaseModel):
-    role: _MessageRole
-
-    cache: bool = False
-    """Whether to cache this message. This is only applicable when using Anthropic models."""
-
-
-class UserMessage(_MessageBase):
-    role: _MessageRole = _MessageRole.USER
-    content: str | list[ContentPartTextParam | ContentPartImageParam]
-    name: str | None = None
-
-    @property
-    def text(self) -> str:
-        if isinstance(self.content, str):
-            return self.content
-        elif isinstance(self.content, list):
-            return "\n".join(
-                [part.text for part in self.content if part.type == "text"]
-            )
-        else:
-            return ""
-
-    def __str__(self) -> str:
-        return f"UserMessage(content={self.text})"
-
-    def __repr__(self) -> str:
-        return f"UserMessage(content={self.text!r})"
-
-
-class SystemMessage(_MessageBase):
-    role: _MessageRole = _MessageRole.SYSTEM
-    content: str | list[ContentPartTextParam]
-    name: str | None = None
-
-    @property
-    def text(self) -> str:
-        if isinstance(self.content, str):
-            return self.content
-        elif isinstance(self.content, list):
-            return "\n".join(
-                [part.text for part in self.content if part.type == "text"]
-            )
-        else:
-            return ""
-
-    def __str__(self) -> str:
-        return f"SystemMessage(content={self.text})"
-
-    def __repr__(self) -> str:
-        return f"SystemMessage(content={self.text!r})"
-
-
-class AssistantMessage(_MessageBase):
-    role: _MessageRole = _MessageRole.ASSISTANT
-    content: str | list[ContentPartTextParam | ContentPartRefusalParam] | None = None
-    name: str | None = None
-    refusal: str | None = None
-    tool_calls: list[ToolCall] = []
-
-    @property
-    def text(self) -> str:
-        if isinstance(self.content, str):
-            return self.content
-        elif isinstance(self.content, list):
-            text = ""
-            for part in self.content:
-                if part.type == "text":
-                    text += part.text
-                elif part.type == "refusal":
-                    text += f"[Refusal] {part.refusal}"
-            return text
-        else:
-            return ""
-
-    def __str__(self) -> str:
-        return f"AssistantMessage(content={self.text})"
-
-    def __repr__(self) -> str:
-        return f"AssistantMessage(content={self.text!r})"
-
-
-class ToolResultMessage(_MessageBase):
-    role: _MessageRole = _MessageRole.TOOL
-    tool_call_id: str
+class SystemMessage(Frozen):
+    type: Literal[MessageType.SYSTEM] = MessageType.SYSTEM
     content: str
 
-    def __str__(self) -> str:
-        return f"ToolResultMessage(tool_call_id={self.tool_call_id}, content={_truncate(self.content)})"
 
-    def __repr__(self) -> str:
-        return f"ToolResultMessage(tool_call_id={self.tool_call_id!r}, content={_truncate(self.content)!r})"
+class UserMessage(Frozen):
+    type: Literal[MessageType.USER] = MessageType.USER
+    content: str | tuple[str | ImageUrl, ...]
+
+    @property
+    def text(self) -> str:
+        if isinstance(self.content, str):
+            return self.content
+        return "\n".join(part for part in self.content if isinstance(part, str))
 
 
-type Message = UserMessage | SystemMessage | AssistantMessage | ToolResultMessage
+class AssistantMessage(Frozen):
+    type: Literal[MessageType.ASSISTANT] = MessageType.ASSISTANT
+    content: str = ""
+    thinking: str | None = None
+    tool_calls: tuple[ToolCall, ...] = ()
+    provider_state: object | None = Field(default=None, repr=False)
+    """The provider's own response object, replayed verbatim when this turn is sent back.
+
+    Reasoning models carry state across a tool round-trip that no text field can
+    reconstruct (encrypted reasoning items, thinking signatures). Keeping the
+    original object here and handing it back means a tool loop does not silently
+    degrade the model's reasoning. Providers that need nothing ignore it.
+    """
+
+
+class ToolResultMessage(Frozen):
+    type: Literal[MessageType.TOOL_RESULT] = MessageType.TOOL_RESULT
+    tool_call_id: str
+    tool_name: str
+    content: str
+    is_error: bool = False
+
+
+type Message = Annotated[
+    SystemMessage | UserMessage | AssistantMessage | ToolResultMessage,
+    Field(discriminator="type"),
+]

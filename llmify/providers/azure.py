@@ -1,147 +1,145 @@
-import os
-from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from collections.abc import Sequence
+from typing import Any
 
-import httpx
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+from pydantic_ai.providers.azure import AzureProvider
+from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
-try:
-    from openai import AsyncAzureOpenAI
-except ImportError:
-    raise ImportError(
-        "The 'openai' package is required for ChatAzureOpenAI. "
-        "Install it with: pip install py-llmify[openai]"
-    )
-
-from llmify.providers._openai_utils import resolve_api_key
-from llmify.providers.openai_compatible import OpenAICompatible
-from llmify.providers.openai_responses import (
-    ChatOpenAIResponses,
-    ReasoningEffort,
-    ResponsesTransport,
-)
-from llmify.providers.openai_responses.types import (
-    ContinuationMode,
-    PromptCacheOptions,
-    ReasoningSummary,
-    ResponsesOptions,
-)
+from llmify.providers.openai import ReasoningEffort, openai_settings
+from llmify.pydantic_ai_adapter import PydanticAIModel, credentials_required
 from llmify.retries import RetryCallback
 
 
-class ChatAzureOpenAI(OpenAICompatible):
-    def __init__(
-        self,
-        model: str = "gpt-4o",
-        api_key: str | None = None,
-        azure_endpoint: str | None = None,
-        api_version: str = "2024-02-15-preview",
-        max_tokens: int | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        frequency_penalty: float | None = None,
-        presence_penalty: float | None = None,
-        stop: str | list[str] | None = None,
-        seed: int | None = None,
-        response_format: dict | None = None,
-        timeout: float | httpx.Timeout | None = 60.0,
-        max_retries: int = 2,
-        on_retry: RetryCallback | None = None,
-        **kwargs: Any,
-    ):
-        super().__init__(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            frequency_penalty=frequency_penalty,
-            presence_penalty=presence_penalty,
-            stop=stop,
-            seed=seed,
-            response_format=response_format,
-            timeout=timeout,
-            max_retries=max_retries,
-            on_retry=on_retry,
-            **kwargs,
-        )
-        if api_key is None:
-            api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        if azure_endpoint is None:
-            azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+class ChatAzureOpenAI(PydanticAIModel):
+    """Azure OpenAI's Chat Completions API.
 
-        self._client = AsyncAzureOpenAI(
-            api_key=api_key,
-            azure_endpoint=cast(str, azure_endpoint),
-            api_version=api_version,
-            timeout=timeout,
-            max_retries=0,
-        )
-
-
-class ChatAzureOpenAIResponses(ChatOpenAIResponses):
-    """Azure OpenAI provider backed by the Responses API."""
+    `model` is the deployment name. `api_key` and `azure_endpoint` fall back to
+    `AZURE_OPENAI_API_KEY` and `AZURE_OPENAI_ENDPOINT`.
+    """
 
     def __init__(
         self,
         model: str,
-        api_key: str | Callable[[], Awaitable[str]] | None = None,
+        *,
+        api_key: str | None = None,
         azure_endpoint: str | None = None,
+        api_version: str | None = None,
+        reasoning_effort: ReasoningEffort | str | None = None,
+        # Output
         max_tokens: int | None = None,
+        stop_sequences: Sequence[str] | None = None,
+        # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
-        reasoning_effort: ReasoningEffort | None = None,
-        store: bool = False,
-        transport: ResponsesTransport | None = None,
-        responses_options: ResponsesOptions | None = None,
-        continuation_mode: ContinuationMode = ContinuationMode.STATELESS,
-        preserve_reasoning: bool = True,
-        reasoning_summary: ReasoningSummary | None = None,
-        prompt_cache_key: str | None = None,
-        prompt_cache_options: PromptCacheOptions | None = None,
-        timeout: float | httpx.Timeout | None = 60.0,
+        top_k: int | None = None,
+        seed: int | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
+        logit_bias: dict[str, int] | None = None,
+        # Model behavior
+        thinking: ThinkingLevel | None = None,
+        parallel_tool_calls: bool | None = None,
+        service_tier: ServiceTier | None = None,
+        # Request and retries
+        timeout: float | None = 60.0,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: object | None = None,
         max_retries: int = 2,
         on_retry: RetryCallback | None = None,
-        default_headers: dict[str, str] | None = None,
-        **kwargs: Any,
-    ):
-        azure_endpoint = azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
-        if not azure_endpoint:
-            raise ValueError(
-                "No Azure OpenAI endpoint found. Pass 'azure_endpoint' or set "
-                "AZURE_OPENAI_ENDPOINT."
+        **settings: Any,
+    ) -> None:
+        with credentials_required():
+            provider = AzureProvider(
+                azure_endpoint=azure_endpoint,
+                api_key=api_key,
+                api_version=api_version,
             )
-
         super().__init__(
-            model=model,
-            api_key=api_key,
-            base_url=_responses_base_url(azure_endpoint),
+            OpenAIChatModel(model, provider=provider),
             max_tokens=max_tokens,
+            stop_sequences=stop_sequences,
             temperature=temperature,
             top_p=top_p,
-            reasoning_effort=reasoning_effort,
-            store=store,
-            transport=transport,
-            responses_options=responses_options,
-            continuation_mode=continuation_mode,
-            preserve_reasoning=preserve_reasoning,
-            reasoning_summary=reasoning_summary,
-            prompt_cache_key=prompt_cache_key,
-            prompt_cache_options=prompt_cache_options,
+            top_k=top_k,
+            seed=seed,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logit_bias=logit_bias,
+            thinking=thinking,
+            parallel_tool_calls=parallel_tool_calls,
+            service_tier=service_tier,
             timeout=timeout,
+            extra_headers=extra_headers,
+            extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,
-            default_headers=default_headers,
-            **kwargs,
+            **openai_settings(settings, reasoning_effort=reasoning_effort),
         )
 
-    def _resolve_api_key(
+
+class ChatAzureOpenAIResponses(PydanticAIModel):
+    """Azure OpenAI's Responses API."""
+
+    def __init__(
         self,
-        api_key: str | Callable[[], Awaitable[str]] | None,
-    ) -> str | Callable[[], Awaitable[str]]:
-        return resolve_api_key(api_key, "AZURE_OPENAI_API_KEY", "Azure OpenAI")
-
-
-def _responses_base_url(azure_endpoint: str) -> str:
-    endpoint = azure_endpoint.rstrip("/")
-    if endpoint.endswith("/openai/v1"):
-        return f"{endpoint}/"
-    return f"{endpoint}/openai/v1/"
+        model: str,
+        *,
+        api_key: str | None = None,
+        azure_endpoint: str | None = None,
+        api_version: str | None = None,
+        reasoning_effort: ReasoningEffort | str | None = None,
+        reasoning_summary: str | None = None,
+        # Output
+        max_tokens: int | None = None,
+        stop_sequences: Sequence[str] | None = None,
+        # Sampling
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        seed: int | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
+        logit_bias: dict[str, int] | None = None,
+        # Model behavior
+        thinking: ThinkingLevel | None = None,
+        parallel_tool_calls: bool | None = None,
+        service_tier: ServiceTier | None = None,
+        # Request and retries
+        timeout: float | None = 60.0,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: object | None = None,
+        max_retries: int = 2,
+        on_retry: RetryCallback | None = None,
+        **settings: Any,
+    ) -> None:
+        with credentials_required():
+            provider = AzureProvider(
+                azure_endpoint=azure_endpoint,
+                api_key=api_key,
+                api_version=api_version,
+            )
+        super().__init__(
+            OpenAIResponsesModel(model, provider=provider),
+            max_tokens=max_tokens,
+            stop_sequences=stop_sequences,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            seed=seed,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logit_bias=logit_bias,
+            thinking=thinking,
+            parallel_tool_calls=parallel_tool_calls,
+            service_tier=service_tier,
+            timeout=timeout,
+            extra_headers=extra_headers,
+            extra_body=extra_body,
+            max_retries=max_retries,
+            on_retry=on_retry,
+            **openai_settings(
+                settings,
+                reasoning_effort=reasoning_effort,
+                reasoning_summary=reasoning_summary,
+            ),
+        )

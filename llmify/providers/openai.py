@@ -1,79 +1,234 @@
-from collections.abc import Awaitable, Callable
+from collections.abc import Sequence
 from enum import StrEnum
 from typing import Any
 
-import httpx
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
-try:
-    from openai import AsyncOpenAI
-except ImportError:
-    raise ImportError(
-        "The 'openai' package is required for ChatOpenAI. "
-        "Install it with: pip install py-llmify[openai]"
-    )
-
-from llmify.providers._openai_utils import resolve_api_key
-from llmify.providers.openai_compatible import OpenAICompatible
+from llmify.pydantic_ai_adapter import PydanticAIModel, credentials_required
 from llmify.retries import RetryCallback
 
 
-class OpenAIModel(StrEnum):
-    GPT_5_6_SOL = "gpt-5.6-sol"
-    GPT_5_6_TERRA = "gpt-5.6-terra"
-    GPT_5_6_LUNA = "gpt-5.6-luna"
+class ReasoningEffort(StrEnum):
+    """How much a reasoning model thinks before it answers.
 
-    GPT_5_5 = "gpt-5.5"
-    GPT_5_5_PRO = "gpt-5.5-pro"
+    Which levels a model accepts differs, and an unsupported level comes back as
+    a request error rather than being silently downgraded.
+    """
 
-    GPT_5_4 = "gpt-5.4"
-    GPT_5_4_PRO = "gpt-5.4-pro"
-    GPT_5_4_MINI = "gpt-5.4-mini"
-    GPT_5_4_NANO = "gpt-5.4-nano"
+    NONE = "none"
+    MINIMAL = "minimal"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    XHIGH = "xhigh"
+    MAX = "max"
 
-    GPT_5_3_CODEX = "gpt-5.3-codex"
 
+class ChatOpenAI(PydanticAIModel):
+    """OpenAI's Chat Completions API.
 
-class ChatOpenAI(OpenAICompatible):
+    `api_key` falls back to `OPENAI_API_KEY`. Some reasoning models accept
+    function tools here only with `reasoning_effort="none"`; prefer
+    `ChatOpenAIResponses` for them.
+    """
+
     def __init__(
         self,
-        model: str | OpenAIModel = OpenAIModel.GPT_5_6_TERRA,
-        api_key: str | Callable[[], Awaitable[str]] | None = None,
+        model: str,
+        *,
+        api_key: str | None = None,
         base_url: str | None = None,
+        reasoning_effort: ReasoningEffort | str | None = None,
+        # Output
         max_tokens: int | None = None,
+        stop_sequences: Sequence[str] | None = None,
+        # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
+        top_k: int | None = None,
+        seed: int | None = None,
         frequency_penalty: float | None = None,
         presence_penalty: float | None = None,
-        stop: str | list[str] | None = None,
-        seed: int | None = None,
-        response_format: dict | None = None,
-        timeout: float | httpx.Timeout | None = 60.0,
+        logit_bias: dict[str, int] | None = None,
+        # Model behavior
+        thinking: ThinkingLevel | None = None,
+        parallel_tool_calls: bool | None = None,
+        service_tier: ServiceTier | None = None,
+        # Request and retries
+        timeout: float | None = 60.0,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: object | None = None,
         max_retries: int = 2,
         on_retry: RetryCallback | None = None,
-        default_headers: dict[str, str] | None = None,
-        **kwargs: Any,
-    ):
+        **settings: Any,
+    ) -> None:
+        with credentials_required():
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
         super().__init__(
-            model=model,
+            OpenAIChatModel(model, provider=provider),
             max_tokens=max_tokens,
+            stop_sequences=stop_sequences,
             temperature=temperature,
             top_p=top_p,
+            top_k=top_k,
+            seed=seed,
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty,
-            stop=stop,
-            seed=seed,
-            response_format=response_format,
+            logit_bias=logit_bias,
+            thinking=thinking,
+            parallel_tool_calls=parallel_tool_calls,
+            service_tier=service_tier,
             timeout=timeout,
+            extra_headers=extra_headers,
+            extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,
-            **kwargs,
+            **openai_settings(settings, reasoning_effort=reasoning_effort),
         )
-        api_key = resolve_api_key(api_key, "OPENAI_API_KEY", "OpenAI")
 
-        self._client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url,
+
+class ChatOpenAIResponses(PydanticAIModel):
+    """OpenAI's Responses API.
+
+    Use this over `ChatOpenAI` for reasoning models: the Responses API carries
+    reasoning state between turns, which a tool loop replays through
+    `AssistantMessage.provider_state`.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        reasoning_effort: ReasoningEffort | str | None = None,
+        reasoning_summary: str | None = None,
+        # Output
+        max_tokens: int | None = None,
+        stop_sequences: Sequence[str] | None = None,
+        # Sampling
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        seed: int | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
+        logit_bias: dict[str, int] | None = None,
+        # Model behavior
+        thinking: ThinkingLevel | None = None,
+        parallel_tool_calls: bool | None = None,
+        service_tier: ServiceTier | None = None,
+        # Request and retries
+        timeout: float | None = 60.0,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: object | None = None,
+        max_retries: int = 2,
+        on_retry: RetryCallback | None = None,
+        **settings: Any,
+    ) -> None:
+        with credentials_required():
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+        super().__init__(
+            OpenAIResponsesModel(model, provider=provider),
+            max_tokens=max_tokens,
+            stop_sequences=stop_sequences,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            seed=seed,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logit_bias=logit_bias,
+            thinking=thinking,
+            parallel_tool_calls=parallel_tool_calls,
+            service_tier=service_tier,
             timeout=timeout,
-            max_retries=0,
-            default_headers=default_headers,
+            extra_headers=extra_headers,
+            extra_body=extra_body,
+            max_retries=max_retries,
+            on_retry=on_retry,
+            **openai_settings(
+                settings,
+                reasoning_effort=reasoning_effort,
+                reasoning_summary=reasoning_summary,
+            ),
         )
+
+
+class OpenAICompatible(PydanticAIModel):
+    """Any endpoint that implements OpenAI's Chat Completions API."""
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        base_url: str,
+        api_key: str | None = None,
+        # Output
+        max_tokens: int | None = None,
+        stop_sequences: Sequence[str] | None = None,
+        # Sampling
+        temperature: float | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        seed: int | None = None,
+        frequency_penalty: float | None = None,
+        presence_penalty: float | None = None,
+        logit_bias: dict[str, int] | None = None,
+        # Model behavior
+        thinking: ThinkingLevel | None = None,
+        parallel_tool_calls: bool | None = None,
+        service_tier: ServiceTier | None = None,
+        # Request and retries
+        timeout: float | None = 60.0,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: object | None = None,
+        max_retries: int = 2,
+        on_retry: RetryCallback | None = None,
+        **settings: Any,
+    ) -> None:
+        with credentials_required():
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
+        super().__init__(
+            OpenAIChatModel(model, provider=provider),
+            max_tokens=max_tokens,
+            stop_sequences=stop_sequences,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            seed=seed,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logit_bias=logit_bias,
+            thinking=thinking,
+            parallel_tool_calls=parallel_tool_calls,
+            service_tier=service_tier,
+            timeout=timeout,
+            extra_headers=extra_headers,
+            extra_body=extra_body,
+            max_retries=max_retries,
+            on_retry=on_retry,
+            **openai_settings(settings),
+        )
+
+
+def openai_settings(
+    settings: dict[str, Any],
+    *,
+    reasoning_effort: ReasoningEffort | str | None = None,
+    reasoning_summary: str | None = None,
+) -> dict[str, Any]:
+    """Fold the named OpenAI options into the pass-through model settings.
+
+    Shared by every provider that reaches OpenAI's wire format, Azure and Codex
+    included.
+    """
+    if reasoning_effort is not None:
+        settings.setdefault(
+            "openai_reasoning_effort", ReasoningEffort(reasoning_effort).value
+        )
+    if reasoning_summary is not None:
+        settings.setdefault("openai_reasoning_summary", reasoning_summary)
+    return settings

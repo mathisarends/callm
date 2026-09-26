@@ -4,39 +4,34 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "py-llmify"
-version = "0.10.0"
-description = "A minimal, fast, and type-safe Python library for LLM chat completions across multiple providers"
+version = "0.12.0"
+description = "A minimal, type-safe Python library for LLM chat completions with OpenAI, Azure OpenAI and Codex"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.28.1",
     "pydantic>=2.12.5",
+    "pydantic-ai-slim[openai]>=2.46.0",
 ]
 
 [project.optional-dependencies]
-openai = ["openai>=2.29.0"]
-websocket = ["openai[realtime]>=2.29.0"]
-cerebras = ["openai>=2.14.0"]
-anthropic = ["anthropic>=0.86.0"]
-google = ["google-genai>=2.10.0"]
-all = [
-    "openai[realtime]>=2.29.0",
-    "anthropic>=0.86.0",
-    "google-genai>=2.10.0",
-]
+websocket = ["websockets>=13.0"]
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.5.1",
+    "pyright>=1.1.414",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "python-dotenv>=1.2.1",
+    "websockets>=13.0",
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "strict"
+asyncio_mode = "auto"
 pythonpath = ["."]
+addopts = "-m 'not live'"
+markers = ["live: calls real provider APIs; run with `pytest -m live`"]
 
 [tool.coverage.run]
 source = ["llmify"]
@@ -54,4 +49,4 @@ exclude_lines = [
 
 [tool.setuptools.packages.find]
 include = ["llmify*"]
-exclude = ["tests*", "examples*", "plans*"]
+exclude = ["tests*", "examples*"]

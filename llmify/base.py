@@ -1,104 +1,164 @@
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
-from typing import Any, overload
+from collections.abc import AsyncIterator, Sequence
+from enum import StrEnum
+from types import TracebackType
+from typing import Annotated, Any, Literal, Self, overload
 
-import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from llmify.messages import Message
-from llmify.retries import RetryCallback
-from llmify.tools import Tool, ToolChoice
-from llmify.views import ChatInvokeCompletion, StreamEvent
+from llmify.messages import AssistantMessage, Frozen, Message, ToolCall
+
+
+class ModelEventType(StrEnum):
+    TEXT_DELTA = "text_delta"
+    THINKING_DELTA = "thinking_delta"
+    TOOL_CALL = "tool_call"
+    RESPONSE = "response"
+
+
+class ModelTool(Frozen):
+    """A tool as the model sees it: a name, a description, a JSON schema."""
+
+    name: str
+    description: str = ""
+    parameters: dict[str, Any] = Field(
+        default_factory=lambda: {"type": "object", "properties": {}}
+    )
+
+
+type ToolChoice = Literal["auto", "required", "none"]
+
+
+class Usage(Frozen):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+
+class TextDelta(Frozen):
+    type: Literal[ModelEventType.TEXT_DELTA] = ModelEventType.TEXT_DELTA
+    delta: str
+
+
+class ThinkingDelta(Frozen):
+    type: Literal[ModelEventType.THINKING_DELTA] = ModelEventType.THINKING_DELTA
+    delta: str
+
+
+class ToolCallEvent(Frozen):
+    """Emitted once a tool call's arguments JSON is fully assembled."""
+
+    type: Literal[ModelEventType.TOOL_CALL] = ModelEventType.TOOL_CALL
+    tool_call: ToolCall
+
+
+class ModelResponse[T](Frozen):
+    """A finished turn. Also the final event of every stream, emitted exactly once."""
+
+    type: Literal[ModelEventType.RESPONSE] = ModelEventType.RESPONSE
+    completion: T
+    thinking: str | None = None
+    finish_reason: str = "stop"
+    tool_calls: tuple[ToolCall, ...] = ()
+    usage: Usage = Usage()
+    provider_state: object | None = Field(default=None, repr=False)
+
+    def as_assistant_message(self) -> AssistantMessage:
+        """This turn, shaped for the next request's history.
+
+        A structured completion leaves ``content`` empty: the parsed object has
+        no faithful text form, and ``provider_state`` carries what the model
+        actually said.
+        """
+        return AssistantMessage(
+            content=self.completion if isinstance(self.completion, str) else "",
+            thinking=self.thinking,
+            tool_calls=self.tool_calls,
+            provider_state=self.provider_state,
+        )
+
+
+type ModelEvent = Annotated[
+    TextDelta | ThinkingDelta | ToolCallEvent | ModelResponse[str],
+    Field(discriminator="type"),
+]
 
 
 class ChatModel(ABC):
-    def __init__(
-        self,
-        model: str,
-        max_tokens: int | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        frequency_penalty: float | None = None,
-        presence_penalty: float | None = None,
-        stop: str | list[str] | None = None,
-        seed: int | None = None,
-        response_format: dict | None = None,
-        timeout: float | httpx.Timeout | None = 60.0,
-        max_retries: int = 2,
-        on_retry: RetryCallback | None = None,
-        **kwargs: Any,
-    ):
-        if not isinstance(max_retries, int) or isinstance(max_retries, bool):
-            raise TypeError("'max_retries' must be an integer.")
-        if max_retries < 0:
-            raise ValueError("'max_retries' must be greater than or equal to 0.")
-
-        self._model = model
-        self._default_max_tokens = max_tokens
-        self._default_temperature = temperature
-        self._default_top_p = top_p
-        self._default_frequency_penalty = frequency_penalty
-        self._default_presence_penalty = presence_penalty
-        self._default_stop = stop
-        self._default_seed = seed
-        self._default_response_format = response_format
-        self._default_timeout = timeout
-        self._default_max_retries = max_retries
-        self._on_retry = on_retry
-        self._default_kwargs = kwargs
+    """A chat model: call for a whole turn, stream for incremental results."""
 
     @property
+    @abstractmethod
     def model(self) -> str:
-        return self._model
-
-    def _merge_params(self, method_kwargs: dict[str, Any]) -> dict[str, Any]:
-        defaults = {
-            "max_tokens": self._default_max_tokens,
-            "temperature": self._default_temperature,
-            "top_p": self._default_top_p,
-            "frequency_penalty": self._default_frequency_penalty,
-            "presence_penalty": self._default_presence_penalty,
-            "stop": self._default_stop,
-            "seed": self._default_seed,
-            "response_format": self._default_response_format,
-        }
-
-        params = {**self._default_kwargs}
-
-        for key, default in defaults.items():
-            value = method_kwargs.get(key, default)
-            if value is not None:
-                params[key] = value
-
-        for key, value in method_kwargs.items():
-            if key not in defaults and value is not None:
-                params[key] = value
-
-        return params
+        """The model identifier this instance talks to."""
 
     @overload
-    async def invoke[T: BaseModel](
-        self, messages: list[Message], output_format: type[T], **kwargs: Any
-    ) -> ChatInvokeCompletion[T]: ...
+    async def call[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: tuple[()] = (),
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T]: ...
 
     @overload
-    async def invoke(
-        self, messages: list[Message], output_format: None = None, **kwargs: Any
-    ) -> ChatInvokeCompletion[str]: ...
+    async def call[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool],
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T | None]: ...
+
+    @overload
+    async def call(
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
+        output_format: None = None,
+    ) -> ModelResponse[str]: ...
 
     @abstractmethod
-    async def invoke[T: BaseModel](
+    async def call[T: BaseModel](
         self,
-        messages: list[Message],
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
-        **kwargs: Any,
-    ) -> ChatInvokeCompletion[T] | ChatInvokeCompletion[str]: ...
+    ) -> ModelResponse[T] | ModelResponse[T | None] | ModelResponse[str]:
+        """Run one turn and return it whole."""
 
     @abstractmethod
     def stream(
         self,
-        messages: list[Message],
-        tools: list[Tool | dict] | None = None,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
         tool_choice: ToolChoice = "auto",
-        **kwargs: Any,
-    ) -> AsyncIterator[StreamEvent]: ...
+    ) -> AsyncIterator[ModelEvent]:
+        """Run one turn, yielding deltas as they arrive and a ``ModelResponse`` last."""
+
+    @abstractmethod
+    async def aclose(self) -> None:
+        """Release the underlying HTTP client."""
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.aclose()
