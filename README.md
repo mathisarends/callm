@@ -277,18 +277,18 @@ carries reasoning state between turns.
 
 **Codex.** A reverse-engineered endpoint that authenticates with a ChatGPT
 subscription rather than an API key; OpenAI neither documents nor supports it.
-If the [Codex CLI](https://github.com/openai/codex) is logged in, borrow its
-session:
+If the [Codex CLI](https://github.com/openai/codex) is logged in, its session
+is borrowed:
 
 ```python
-model = ChatCodex.from_cli("gpt-5.6-terra", reasoning_effort="high")
+model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
 ```
 
-`from_cli` reads `~/.codex/auth.json` (honouring `CODEX_HOME`) and writes
-refreshed tokens back, so the CLI and llmify keep sharing one login — refresh
-tokens are single-use, so without the write-back the CLI's would go stale.
-Constructing `ChatCodex(...)` without arguments reads the same file but never
-writes it. A missing or unusable login raises `CredentialsUnavailableError`.
+This reads `~/.codex/auth.json` (honouring `CODEX_HOME`) but never writes it,
+so refreshed tokens last only as long as the process. To keep them, pass a
+`credential_source` — any `OpenAICodexCredentialSource`, as described in
+[pydantic-ai's docs](https://ai.pydantic.dev/models/openai-codex/#persisting-credentials).
+A missing or unusable login raises `CredentialsUnavailableError`.
 
 ## Model settings
 

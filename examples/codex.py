@@ -1,9 +1,8 @@
 """Codex: talking to the endpoint with a ChatGPT subscription.
 
-`from_cli` borrows the login the Codex CLI already has (`codex login`) and
-writes refreshed tokens back to `~/.codex/auth.json`, so the CLI and llmify go
-on sharing one session. Refresh tokens are single-use, which is why the
-write-back matters.
+Borrows the Codex CLI's login (`codex login`) read-only: refreshed tokens live
+only as long as the process. To persist them, pass a `credential_source`; see
+pydantic-ai's docs on persisting Codex credentials.
 
 This is a reverse-engineered endpoint. OpenAI neither documents nor supports it.
 """
@@ -15,7 +14,7 @@ from llmify import ChatCodex, CredentialsUnavailableError, UserMessage
 
 async def main() -> None:
     try:
-        model = ChatCodex.from_cli("gpt-5.6-terra", reasoning_effort="high")
+        model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
     except CredentialsUnavailableError as error:
         print(error)
         return

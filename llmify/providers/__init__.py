@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     from .azure import ChatAzureOpenAIResponses as ChatAzureOpenAIResponses
     from .cerebras import ChatCerebras as ChatCerebras
     from .codex import ChatCodex as ChatCodex
-    from .codex import CodexCliCredentials as CodexCliCredentials
     from .codex import OpenAICodexCredentials as OpenAICodexCredentials
     from .google import ChatGoogle as ChatGoogle
     from .openai import ChatOpenAI as ChatOpenAI
@@ -32,7 +31,6 @@ _MODULE_BY_NAME = {
     "ChatGoogle": "google",
     "ChatOpenAI": "openai",
     "ChatOpenAIResponses": "openai",
-    "CodexCliCredentials": "codex",
     "OpenAICodexCredentials": "codex",
     "OpenAICompatible": "openai",
     "ReasoningEffort": "openai",

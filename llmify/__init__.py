@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from .providers import ChatGoogle as ChatGoogle
     from .providers import ChatOpenAI as ChatOpenAI
     from .providers import ChatOpenAIResponses as ChatOpenAIResponses
-    from .providers import CodexCliCredentials as CodexCliCredentials
     from .providers import OpenAICodexCredentials as OpenAICodexCredentials
     from .providers import OpenAICompatible as OpenAICompatible
     from .providers import ReasoningEffort as ReasoningEffort
@@ -75,7 +74,6 @@ __all__ = [
     "ChatModel",
     "ChatOpenAI",
     "ChatOpenAIResponses",
-    "CodexCliCredentials",
     "ContextLengthExceededError",
     "CredentialsUnavailableError",
     "ImageUrl",

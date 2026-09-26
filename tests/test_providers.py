@@ -9,11 +9,10 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.models.openai_codex import OpenAICodexModel
 from pydantic_ai.providers.azure import AzureProvider
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 
 import llmify
 from llmify.exceptions import CredentialsUnavailableError
-from llmify.providers.codex import ChatCodex, CodexCliCredentials
+from llmify.providers.codex import ChatCodex
 from llmify.providers.openai import ReasoningEffort
 
 AUTH_JSON = {
@@ -156,58 +155,6 @@ def test_codex_says_so_when_there_is_no_login(
 
     with pytest.raises(CredentialsUnavailableError, match="codex login"):
         ChatCodex("gpt-5.6-terra")
-
-
-def test_from_cli_defers_the_read_to_the_credential_source(tmp_path: Path) -> None:
-    # No auth.json anywhere, yet construction succeeds: the source loads lazily.
-    model = ChatCodex.from_cli("gpt-5.6-terra", auth_path=tmp_path / "auth.json")
-
-    assert isinstance(model._model, OpenAICodexModel)
-
-
-async def test_the_cli_source_loads_the_stored_tokens(auth_file: Path) -> None:
-    credentials = await CodexCliCredentials(auth_file).load()
-
-    assert credentials.account_id == "acct-1"
-    assert credentials.access_token == "access-1"
-
-
-async def test_the_cli_source_writes_rotated_tokens_back(auth_file: Path) -> None:
-    source = CodexCliCredentials(auth_file)
-
-    await source.save(
-        OpenAICodexCredentials(
-            access_token="access-2", refresh_token="refresh-2", account_id="acct-1"
-        )
-    )
-
-    stored = json.loads(auth_file.read_text(encoding="utf-8"))
-    assert stored["tokens"]["access_token"] == "access-2"
-    assert stored["tokens"]["refresh_token"] == "refresh-2"
-    assert stored["last_refresh"] == AUTH_JSON["last_refresh"]
-
-
-async def test_the_cli_source_reports_a_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(CredentialsUnavailableError, match="codex login"):
-        await CodexCliCredentials(tmp_path / "nothing.json").load()
-
-
-async def test_the_cli_source_reports_a_file_without_tokens(tmp_path: Path) -> None:
-    path = tmp_path / "auth.json"
-    path.write_text("{}", encoding="utf-8")
-
-    with pytest.raises(CredentialsUnavailableError, match="missing its tokens"):
-        await CodexCliCredentials(path).load()
-
-
-def test_codex_home_follows_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    from llmify.providers.codex import codex_home
-
-    monkeypatch.setenv("CODEX_HOME", "/somewhere/else")
-    assert codex_home() == Path("/somewhere/else")
-
-    monkeypatch.delenv("CODEX_HOME")
-    assert codex_home() == Path.home() / ".codex"
 
 
 # --- lazy exports -----------------------------------------------------------
