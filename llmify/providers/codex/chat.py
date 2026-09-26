@@ -31,11 +31,7 @@ from llmify.providers.codex.websocket import (
     WebSocketUnavailable,
 )
 from llmify.providers.openai import ReasoningEffort, openai_settings
-from llmify.pydantic_ai_adapter import (
-    PydanticAIModel,
-    model_messages,
-    request_parameters,
-)
+from llmify.pydantic_ai_adapter import PydanticAIModel, model_messages
 from llmify.retries import RetryCallback
 
 _SESSION_HEADERS = ("session-id", "thread-id", "x-client-request-id")
@@ -178,7 +174,7 @@ class ChatCodex(PydanticAIModel):
                 response = await self._model.request(
                     model_messages(messages, ensure_request=True),
                     ModelSettings(**settings),  # type: ignore[typeddict-item]
-                    request_parameters(tools, output_format),
+                    self._request_parameters(tools, output_format),
                 )
         except (WebSocketUnavailable, WebSocketInterrupted) as error:
             await self._report_transport_fallback("prepare", error)

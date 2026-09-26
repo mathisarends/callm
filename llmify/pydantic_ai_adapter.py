@@ -42,6 +42,7 @@ from pydantic_ai.messages import (
     ModelResponse as PydanticModelResponse,
 )
 from pydantic_ai.models import Model, ModelRequestParameters
+from pydantic_ai.output import OutputObjectDefinition
 from pydantic_ai.settings import ModelSettings, ServiceTier, ThinkingLevel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
@@ -80,10 +81,13 @@ from llmify.retries import RetryCallback, retry_call, retry_stream
 OUTPUT_TOOL_NAME = "final_result"
 """The tool a model calls to deliver a structured answer.
 
-Structured output goes through a tool on every provider rather than through each
-one's native JSON mode: tool calling is the one shape all of them speak, so the
-answer is parsed in one place instead of three.
+Structured output uses the provider's native JSON-schema mode where the model
+supports it and falls back to this tool otherwise. Native mode is preferred:
+some reasoning models reject function tools on Chat Completions outright, and an
+answer given as text leaves no tool call dangling in the next turn's history.
 """
+
+OUTPUT_TOOL_RETURN = "Final result processed."
 
 
 class PydanticAIModel(ChatModel):
@@ -191,7 +195,7 @@ class PydanticAIModel(ChatModel):
         tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
     ) -> ModelResponse[T] | ModelResponse[str]:
-        parameters = request_parameters(tools, output_format)
+        parameters = self._request_parameters(tools, output_format)
         history, settings = self._request_context(
             messages,
             tools=tools,
@@ -214,7 +218,7 @@ class PydanticAIModel(ChatModel):
         tools: Sequence[ModelTool] = (),
         tool_choice: ToolChoice = "auto",
     ) -> AsyncIterator[ModelEvent]:
-        parameters = request_parameters(tools, None)
+        parameters = self._request_parameters(tools, None)
         history, settings = self._request_context(
             messages,
             tools=tools,
@@ -242,6 +246,17 @@ class PydanticAIModel(ChatModel):
     async def aclose(self) -> None:
         await self._model.__aexit__(None, None, None)
 
+    def _request_parameters(
+        self,
+        tools: Sequence[ModelTool],
+        output_format: type[BaseModel] | None,
+    ) -> ModelRequestParameters:
+        return request_parameters(
+            tools,
+            output_format,
+            native_output=bool(self._model.profile.get("supports_json_schema_output")),
+        )
+
     def _settings_for(self, tool_choice: ToolChoice) -> ModelSettings | None:
         return _settings({**(self._settings or {}), "tool_choice": tool_choice})
 
@@ -264,6 +279,8 @@ def _settings(values: dict[str, Any]) -> ModelSettings | None:
 def request_parameters(
     tools: Sequence[ModelTool],
     output_format: type[BaseModel] | None,
+    *,
+    native_output: bool = False,
 ) -> ModelRequestParameters:
     """Describe the tools and structured output format for one request."""
     function_tools = [
@@ -276,6 +293,17 @@ def request_parameters(
     ]
     if output_format is None:
         return ModelRequestParameters(function_tools=function_tools)
+
+    if native_output:
+        return ModelRequestParameters(
+            function_tools=function_tools,
+            output_mode="native",
+            output_object=OutputObjectDefinition(
+                json_schema=output_format.model_json_schema(),
+                name=output_format.__name__,
+                description=output_format.__doc__,
+            ),
+        )
 
     return ModelRequestParameters(
         function_tools=function_tools,
@@ -330,6 +358,16 @@ def model_messages(
             case AssistantMessage(provider_state=PydanticModelResponse() as state):
                 flush()
                 history.append(state)
+                # A tool-mode structured answer is a tool call like any other;
+                # providers reject the next turn unless it has an output.
+                pending.extend(
+                    ToolReturnPart(
+                        OUTPUT_TOOL_NAME, OUTPUT_TOOL_RETURN, part.tool_call_id
+                    )
+                    for part in state.parts
+                    if isinstance(part, ToolCallPart)
+                    and part.tool_name == OUTPUT_TOOL_NAME
+                )
             case AssistantMessage():
                 flush()
                 history.append(PydanticModelResponse(parts=_assistant_parts(message)))
@@ -388,7 +426,7 @@ def _response[T: BaseModel](
 
     completion: Any = text
     if output_format is not None:
-        completion, tool_calls = _structured(output_format, tool_calls)
+        completion, tool_calls = _structured(output_format, text, tool_calls)
 
     return ModelResponse(
         completion=completion,
@@ -402,25 +440,34 @@ def _response[T: BaseModel](
 
 def _structured[T: BaseModel](
     output_format: type[T],
+    text: str,
     tool_calls: tuple[ToolCall, ...],
 ) -> tuple[T, tuple[ToolCall, ...]]:
-    """Split the output tool's call off the model's real tool calls and parse it."""
+    """Parse the structured answer from the output tool's call or native JSON text.
+
+    The output tool's call is split off the model's real tool calls.
+    """
     answer = next((c for c in tool_calls if c.name == OUTPUT_TOOL_NAME), None)
-    if answer is None:
+    if answer is not None:
+        payload, source = answer.arguments, f"{OUTPUT_TOOL_NAME!r} call"
+        tool_calls = tuple(c for c in tool_calls if c is not answer)
+    elif text.strip():
+        payload, source = text, "answer"
+    else:
+        called = ", ".join(repr(c.name) for c in tool_calls)
         raise ModelBehaviorError(
-            f"The model returned no {OUTPUT_TOOL_NAME!r} call, so there is no "
-            f"{output_format.__name__} to parse."
+            f"The model returned no {output_format.__name__} to parse"
+            + (f"; it called {called} instead." if called else ".")
         )
 
     try:
-        parsed = output_format.model_validate_json(answer.arguments)
+        parsed = output_format.model_validate_json(payload)
     except ValidationError as error:
         raise ModelBehaviorError(
-            f"The model's {OUTPUT_TOOL_NAME!r} call is not a valid "
-            f"{output_format.__name__}: {error}"
+            f"The model's {source} is not a valid {output_format.__name__}: {error}"
         ) from error
 
-    return parsed, tuple(c for c in tool_calls if c is not answer)
+    return parsed, tool_calls
 
 
 def _tool_call(part: ToolCallPart) -> ToolCall:

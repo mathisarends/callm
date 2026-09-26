@@ -23,8 +23,10 @@ from pydantic_ai.models.function import (
     AgentInfo,
     DeltaThinkingPart,
     DeltaToolCall,
+    FunctionDef,
     FunctionModel,
 )
+from pydantic_ai.profiles import ModelProfile
 from pydantic_ai.usage import RequestUsage
 
 from llmify.base import (
@@ -50,6 +52,7 @@ from llmify.errors import (
 from llmify.messages import (
     AssistantMessage,
     ImageUrl,
+    Message,
     SystemMessage,
     ToolCall,
     ToolResultMessage,
@@ -249,14 +252,68 @@ def test_plain_text_stays_a_plain_string() -> None:
 # --- structured output ------------------------------------------------------
 
 
-async def test_structured_output_is_parsed_and_removed_from_tool_calls() -> None:
+def tool_output_model(function: FunctionDef) -> PydanticAIModel:
+    """A model without native JSON-schema output, so structured output uses a tool."""
+    return PydanticAIModel(
+        FunctionModel(function, profile=ModelProfile(supports_json_schema_output=False))
+    )
+
+
+async def test_native_structured_output_sends_the_schema_and_parses_the_text() -> None:
+    seen: list[AgentInfo] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        seen.append(info)
+        return ModelResponse(parts=[TextPart('{"value": 4, "unit": "apples"}')])
+
+    model = PydanticAIModel(FunctionModel(respond))
+    response = await model.call(
+        [UserMessage(content="how many?")], output_format=Answer
+    )
+
+    assert response.completion == Answer(value=4, unit="apples")
+    assert seen[0].output_tools == []
+    assert seen[0].model_request_parameters.output_mode == "native"
+    output_object = seen[0].model_request_parameters.output_object
+    assert output_object is not None
+    assert output_object.name == "Answer"
+
+
+async def test_native_structured_output_keeps_the_model_s_own_tool_calls() -> None:
+    model = model_for(
+        ToolCallPart("calc", "{}", "tc1"), TextPart('{"value": 1, "unit": "x"}')
+    )
+
+    response = await model.call([UserMessage(content="?")], output_format=Answer)
+
+    assert response.completion == Answer(value=1, unit="x")
+    assert [call.name for call in response.tool_calls] == ["calc"]
+
+
+async def test_unparsable_native_text_is_a_model_behaviour_error() -> None:
+    model = model_for(TextPart(content="just prose"))
+
+    with pytest.raises(ModelBehaviorError, match="answer is not a valid Answer"):
+        await model.call([UserMessage(content="?")], output_format=Answer)
+
+
+async def test_a_turn_that_only_calls_tools_names_them_in_the_error() -> None:
+    model = model_for(ToolCallPart("calc", "{}", "tc1"))
+
+    with pytest.raises(
+        ModelBehaviorError, match="no Answer to parse; it called 'calc'"
+    ):
+        await model.call([UserMessage(content="?")], output_format=Answer)
+
+
+async def test_tool_structured_output_is_parsed_and_removed_from_tool_calls() -> None:
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         name = info.output_tools[0].name
         return ModelResponse(
             parts=[ToolCallPart(name, '{"value": 4, "unit": "apples"}', "o1")]
         )
 
-    model = PydanticAIModel(FunctionModel(respond))
+    model = tool_output_model(respond)
     response = await model.call(
         [UserMessage(content="how many?")], output_format=Answer
     )
@@ -265,7 +322,7 @@ async def test_structured_output_is_parsed_and_removed_from_tool_calls() -> None
     assert response.tool_calls == ()
 
 
-async def test_structured_output_keeps_the_model_s_own_tool_calls() -> None:
+async def test_tool_structured_output_keeps_the_model_s_own_tool_calls() -> None:
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         return ModelResponse(
             parts=[
@@ -276,17 +333,10 @@ async def test_structured_output_keeps_the_model_s_own_tool_calls() -> None:
             ]
         )
 
-    model = PydanticAIModel(FunctionModel(respond))
+    model = tool_output_model(respond)
     response = await model.call([UserMessage(content="?")], output_format=Answer)
 
     assert [call.name for call in response.tool_calls] == ["calc"]
-
-
-async def test_a_missing_output_call_is_a_model_behaviour_error() -> None:
-    model = model_for(TextPart(content="just prose"))
-
-    with pytest.raises(ModelBehaviorError, match="final_result"):
-        await model.call([UserMessage(content="?")], output_format=Answer)
 
 
 async def test_an_unparsable_output_call_is_a_model_behaviour_error() -> None:
@@ -294,10 +344,38 @@ async def test_an_unparsable_output_call_is_a_model_behaviour_error() -> None:
         name = info.output_tools[0].name
         return ModelResponse(parts=[ToolCallPart(name, '{"value": "many"}', "o1")])
 
-    model = PydanticAIModel(FunctionModel(respond))
+    model = tool_output_model(respond)
 
-    with pytest.raises(ModelBehaviorError, match="not a valid Answer"):
+    with pytest.raises(ModelBehaviorError, match="'final_result' call is not a valid"):
         await model.call([UserMessage(content="?")], output_format=Answer)
+
+
+async def test_a_tool_structured_turn_can_be_continued() -> None:
+    requests: list[list[ModelMessage]] = []
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        requests.append(messages)
+        if info.output_tools:
+            name = info.output_tools[0].name
+            return ModelResponse(
+                parts=[ToolCallPart(name, '{"value": 1, "unit": "x"}', "o1")]
+            )
+        return ModelResponse(parts=[TextPart("done")])
+
+    model = tool_output_model(respond)
+    history: list[Message] = [UserMessage(content="count")]
+    first = await model.call(history, output_format=Answer)
+    history += [first.as_assistant_message(), UserMessage(content="thanks")]
+
+    second = await model.call(history)
+
+    assert second.completion == "done"
+    follow_up = requests[1][-1]
+    assert isinstance(follow_up, ModelRequest)
+    returned, prompt = follow_up.parts
+    assert isinstance(returned, ToolReturnPart)
+    assert (returned.tool_name, returned.tool_call_id) == ("final_result", "o1")
+    assert isinstance(prompt, UserPromptPart)
 
 
 # --- streaming --------------------------------------------------------------
