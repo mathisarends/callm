@@ -14,11 +14,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-openai = ["pydantic-ai-slim[openai]>=2.46.0"]
+openai = ["pydantic-ai-slim[openai]>=2.46.0", "websockets>=13.0"]
 cerebras = ["pydantic-ai-slim[cerebras]>=2.46.0"]
 anthropic = ["pydantic-ai-slim[anthropic]>=2.46.0"]
 google = ["pydantic-ai-slim[google]>=2.46.0"]
-all = ["pydantic-ai-slim[openai,cerebras,anthropic,google]>=2.46.0"]
+all = ["pydantic-ai-slim[openai,cerebras,anthropic,google]>=2.46.0", "websockets>=13.0"]
 
 [dependency-groups]
 dev = [

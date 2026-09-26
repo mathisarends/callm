@@ -284,6 +284,12 @@ is borrowed:
 model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
 ```
 
+`ChatCodex` uses the Codex Responses WebSocket by default and reuses its
+connection across turns. If opening the connection or starting a response fails,
+it retries that request over HTTP. A connection lost after a response starts is
+reported without replaying the request. Use `transport="http"` to select HTTP
+from the start.
+
 This reads `~/.codex/auth.json` (honouring `CODEX_HOME`) but never writes it,
 so refreshed tokens last only as long as the process. To keep them, pass a
 `credential_source` — any `OpenAICodexCredentialSource`, as described in
