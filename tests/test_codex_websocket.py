@@ -26,6 +26,16 @@ def _model(transport: str = "websocket") -> ChatCodex:
     return ChatCodex("gpt-5.6-terra", credentials=credentials, transport=transport)
 
 
+def test_codex_defaults_to_http() -> None:
+    credentials = OpenAICodexCredentials(
+        access_token="access", refresh_token="refresh", account_id="account"
+    )
+    model = ChatCodex("gpt-5.6-terra", credentials=credentials)
+
+    assert model._responses_resource is None
+    asyncio.run(model.aclose())
+
+
 def test_codex_transport_selection_and_http_fallback() -> None:
     async def run() -> None:
         model = _model()

@@ -1,4 +1,5 @@
 import json
+from inspect import Parameter, signature
 from pathlib import Path
 
 import pytest
@@ -80,6 +81,56 @@ def test_azure_responses_reaches_the_azure_provider() -> None:
 
 
 # --- named options become model settings ------------------------------------
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        llmify.ChatOpenAI,
+        llmify.ChatOpenAIResponses,
+        llmify.OpenAICompatible,
+        llmify.ChatAzureOpenAI,
+        llmify.ChatAzureOpenAIResponses,
+        ChatCodex,
+    ],
+)
+def test_common_options_are_explicit_keyword_parameters(provider: type) -> None:
+    parameters = signature(provider).parameters
+
+    for name in (
+        "max_tokens",
+        "stop_sequences",
+        "temperature",
+        "top_p",
+        "top_k",
+        "seed",
+        "frequency_penalty",
+        "presence_penalty",
+        "logit_bias",
+        "thinking",
+        "parallel_tool_calls",
+        "service_tier",
+        "timeout",
+        "extra_headers",
+        "extra_body",
+        "max_retries",
+        "on_retry",
+    ):
+        assert parameters[name].kind is Parameter.KEYWORD_ONLY
+
+
+def test_public_provider_forwards_named_settings() -> None:
+    model = llmify.ChatOpenAI(
+        "gpt-5.6",
+        api_key="k",
+        top_k=8,
+        stop_sequences=("END",),
+        extra_headers={"X-Tenant": "acme"},
+    )
+
+    assert model._settings["top_k"] == 8
+    assert model._settings["stop_sequences"] == ["END"]
+    assert model._settings["extra_headers"] == {"X-Tenant": "acme"}
 
 
 def test_reasoning_effort_becomes_a_model_setting() -> None:

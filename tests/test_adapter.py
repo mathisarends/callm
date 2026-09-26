@@ -419,6 +419,36 @@ def test_max_retries_is_checked_up_front() -> None:
 # --- settings ---------------------------------------------------------------
 
 
+def test_named_settings_and_stop_alias() -> None:
+    model = PydanticAIModel(
+        FunctionModel(lambda m, i: ModelResponse(parts=[])),
+        top_k=8,
+        frequency_penalty=0.2,
+        parallel_tool_calls=False,
+        thinking="low",
+        stop_sequences=("END",),
+    )
+
+    assert model._settings["top_k"] == 8
+    assert model._settings["frequency_penalty"] == 0.2
+    assert model._settings["parallel_tool_calls"] is False
+    assert model._settings["thinking"] == "low"
+    assert model._settings["stop_sequences"] == ["END"]
+
+    with pytest.raises(ValueError, match="cannot both be set"):
+        PydanticAIModel(
+            FunctionModel(lambda m, i: ModelResponse(parts=[])),
+            stop=["A"],
+            stop_sequences=["B"],
+        )
+
+    with pytest.raises(TypeError, match="passed to call"):
+        PydanticAIModel(
+            FunctionModel(lambda m, i: ModelResponse(parts=[])),
+            tool_choice="required",
+        )
+
+
 async def test_settings_and_tool_choice_reach_the_request() -> None:
     seen: dict[str, object] = {}
 
