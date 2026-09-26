@@ -22,9 +22,6 @@ from pydantic_ai.models.function import (
 )
 from pydantic_ai.usage import RequestUsage
 
-from llmify import ports
-from llmify._adapter import PydanticAIModel, _mapped_error, _model_messages, _usage
-from llmify.retries import retry_delay
 from llmify.exceptions import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -33,6 +30,26 @@ from llmify.exceptions import (
     RateLimitError,
     RetryableError,
 )
+from llmify.ports import (
+    AssistantMessage,
+    ImageUrl,
+    ModelEventType,
+    ModelTool,
+    SystemMessage,
+    TextDelta,
+    ThinkingDelta,
+    ToolCall,
+    ToolResultMessage,
+    Usage,
+    UserMessage,
+)
+from llmify.pydantic_ai_adapter import (
+    PydanticAIModel,
+    _mapped_error,
+    _model_messages,
+    _usage,
+)
+from llmify.retries import retry_delay
 
 PNG_PIXEL = (
     "data:image/png;base64,"
@@ -62,19 +79,19 @@ async def test_call_returns_text_thinking_and_tool_calls() -> None:
         ToolCallPart("calc", '{"x": 1}', "tc1"),
     )
 
-    response = await model.call([ports.UserMessage(content="2+2?")])
+    response = await model.call([UserMessage(content="2+2?")])
 
     assert response.completion == "4"
     assert response.thinking == "let me see"
     assert response.tool_calls == (
-        ports.ToolCall(id="tc1", name="calc", arguments='{"x": 1}'),
+        ToolCall(id="tc1", name="calc", arguments='{"x": 1}'),
     )
 
 
 async def test_calling_the_model_directly_is_the_same_as_call() -> None:
     model = model_for(TextPart(content="4"))
 
-    assert (await model([ports.UserMessage(content="2+2?")])).completion == "4"
+    assert (await model([UserMessage(content="2+2?")])).completion == "4"
 
 
 async def test_tools_reach_the_model_as_definitions() -> None:
@@ -86,8 +103,8 @@ async def test_tools_reach_the_model_as_definitions() -> None:
 
     model = PydanticAIModel(FunctionModel(respond))
     await model.call(
-        [ports.UserMessage(content="hi")],
-        tools=[ports.ModelTool(name="calc", description="Do maths")],
+        [UserMessage(content="hi")],
+        tools=[ModelTool(name="calc", description="Do maths")],
     )
 
     assert seen == ["calc:Do maths"]
@@ -98,7 +115,7 @@ async def test_usage_carries_cache_counters() -> None:
         RequestUsage(
             input_tokens=10, output_tokens=3, cache_read_tokens=7, cache_write_tokens=2
         )
-    ) == ports.Usage(
+    ) == Usage(
         input_tokens=10, output_tokens=3, cache_read_tokens=7, cache_write_tokens=2
     )
 
@@ -108,7 +125,7 @@ async def test_usage_carries_cache_counters() -> None:
 
 def test_a_system_message_becomes_instructions() -> None:
     history = _model_messages(
-        [ports.SystemMessage(content="be terse"), ports.UserMessage(content="hi")]
+        [SystemMessage(content="be terse"), UserMessage(content="hi")]
     )
 
     assert len(history) == 1
@@ -118,15 +135,15 @@ def test_a_system_message_becomes_instructions() -> None:
 def test_tool_results_answering_one_turn_share_a_request() -> None:
     history = _model_messages(
         [
-            ports.UserMessage(content="hi"),
-            ports.AssistantMessage(
+            UserMessage(content="hi"),
+            AssistantMessage(
                 tool_calls=(
-                    ports.ToolCall(id="a", name="one"),
-                    ports.ToolCall(id="b", name="two"),
+                    ToolCall(id="a", name="one"),
+                    ToolCall(id="b", name="two"),
                 )
             ),
-            ports.ToolResultMessage(tool_call_id="a", tool_name="one", content="1"),
-            ports.ToolResultMessage(tool_call_id="b", tool_name="two", content="2"),
+            ToolResultMessage(tool_call_id="a", tool_name="one", content="1"),
+            ToolResultMessage(tool_call_id="b", tool_name="two", content="2"),
         ]
     )
 
@@ -144,7 +161,7 @@ def test_tool_results_answering_one_turn_share_a_request() -> None:
 def test_a_failed_tool_result_says_so() -> None:
     history = _model_messages(
         [
-            ports.ToolResultMessage(
+            ToolResultMessage(
                 tool_call_id="a", tool_name="one", content="boom", is_error=True
             )
         ]
@@ -158,7 +175,7 @@ def test_a_failed_tool_result_says_so() -> None:
 def test_provider_state_is_replayed_verbatim() -> None:
     original = ModelResponse(parts=[TextPart(content="kept")])
     history = _model_messages(
-        [ports.AssistantMessage(content="lossy", provider_state=original)]
+        [AssistantMessage(content="lossy", provider_state=original)]
     )
 
     assert history[0] is original
@@ -167,10 +184,10 @@ def test_provider_state_is_replayed_verbatim() -> None:
 def test_an_assistant_message_without_provider_state_is_rebuilt() -> None:
     history = _model_messages(
         [
-            ports.AssistantMessage(
+            AssistantMessage(
                 content="said",
                 thinking="thought",
-                tool_calls=(ports.ToolCall(id="a", name="one", arguments='{"x": 1}'),),
+                tool_calls=(ToolCall(id="a", name="one", arguments='{"x": 1}'),),
             )
         ]
     )
@@ -183,10 +200,10 @@ def test_an_assistant_message_without_provider_state_is_rebuilt() -> None:
 
 
 def test_an_image_url_travels_as_a_url() -> None:
-    message = ports.UserMessage(
+    message = UserMessage(
         content=(
             "look",
-            ports.ImageUrl(url="https://example.test/x.png", detail="high"),
+            ImageUrl(url="https://example.test/x.png", detail="high"),
         )
     )
 
@@ -199,7 +216,7 @@ def test_an_image_url_travels_as_a_url() -> None:
 
 
 def test_a_data_uri_travels_as_bytes() -> None:
-    message = ports.UserMessage(content=(ports.ImageUrl(url=PNG_PIXEL),))
+    message = UserMessage(content=(ImageUrl(url=PNG_PIXEL),))
 
     part = _model_messages([message])[0].parts[0]
     assert isinstance(part, UserPromptPart)
@@ -210,7 +227,7 @@ def test_a_data_uri_travels_as_bytes() -> None:
 
 
 def test_plain_text_stays_a_plain_string() -> None:
-    part = _model_messages([ports.UserMessage(content="hi")])[0].parts[0]
+    part = _model_messages([UserMessage(content="hi")])[0].parts[0]
 
     assert isinstance(part, UserPromptPart)
     assert part.content == "hi"
@@ -228,7 +245,7 @@ async def test_structured_output_is_parsed_and_removed_from_tool_calls() -> None
 
     model = PydanticAIModel(FunctionModel(respond))
     response = await model.call(
-        [ports.UserMessage(content="how many?")], output_format=Answer
+        [UserMessage(content="how many?")], output_format=Answer
     )
 
     assert response.completion == Answer(value=4, unit="apples")
@@ -247,7 +264,7 @@ async def test_structured_output_keeps_the_model_s_own_tool_calls() -> None:
         )
 
     model = PydanticAIModel(FunctionModel(respond))
-    response = await model.call([ports.UserMessage(content="?")], output_format=Answer)
+    response = await model.call([UserMessage(content="?")], output_format=Answer)
 
     assert [call.name for call in response.tool_calls] == ["calc"]
 
@@ -256,7 +273,7 @@ async def test_a_missing_output_call_is_a_model_behaviour_error() -> None:
     model = model_for(TextPart(content="just prose"))
 
     with pytest.raises(ModelBehaviorError, match="final_result"):
-        await model.call([ports.UserMessage(content="?")], output_format=Answer)
+        await model.call([UserMessage(content="?")], output_format=Answer)
 
 
 async def test_an_unparsable_output_call_is_a_model_behaviour_error() -> None:
@@ -267,7 +284,7 @@ async def test_an_unparsable_output_call_is_a_model_behaviour_error() -> None:
     model = PydanticAIModel(FunctionModel(respond))
 
     with pytest.raises(ModelBehaviorError, match="not a valid Answer"):
-        await model.call([ports.UserMessage(content="?")], output_format=Answer)
+        await model.call([UserMessage(content="?")], output_format=Answer)
 
 
 # --- streaming --------------------------------------------------------------
@@ -281,17 +298,15 @@ async def test_a_stream_yields_deltas_then_one_response() -> None:
         yield {0: DeltaToolCall(json_args="1}")}
 
     model = PydanticAIModel(FunctionModel(stream_function=stream))
-    events = [event async for event in model.stream([ports.UserMessage(content="hi")])]
+    events = [event async for event in model.stream([UserMessage(content="hi")])]
 
     assert [event.type for event in events] == [
-        ports.ModelEventType.TEXT_DELTA,
-        ports.ModelEventType.TEXT_DELTA,
-        ports.ModelEventType.TOOL_CALL,
-        ports.ModelEventType.RESPONSE,
+        ModelEventType.TEXT_DELTA,
+        ModelEventType.TEXT_DELTA,
+        ModelEventType.TOOL_CALL,
+        ModelEventType.RESPONSE,
     ]
-    assert events[2].tool_call == ports.ToolCall(
-        id="tc9", name="calc", arguments='{"x":1}'
-    )
+    assert events[2].tool_call == ToolCall(id="tc9", name="calc", arguments='{"x":1}')
     assert events[-1].completion == "Hello world"
     assert events[-1].tool_calls == (events[2].tool_call,)
 
@@ -302,10 +317,10 @@ async def test_a_stream_reports_thinking_separately_from_text() -> None:
         yield "answer"
 
     model = PydanticAIModel(FunctionModel(stream_function=stream))
-    events = [event async for event in model.stream([ports.UserMessage(content="hi")])]
+    events = [event async for event in model.stream([UserMessage(content="hi")])]
 
-    assert events[0] == ports.ThinkingDelta(delta="hmm")
-    assert events[1] == ports.TextDelta(delta="answer")
+    assert events[0] == ThinkingDelta(delta="hmm")
+    assert events[1] == TextDelta(delta="answer")
     assert events[-1].thinking == "hmm"
 
 
@@ -370,7 +385,7 @@ async def test_a_transient_failure_is_retried() -> None:
         return ModelResponse(parts=[TextPart(content="second time lucky")])
 
     model = PydanticAIModel(FunctionModel(respond), max_retries=1)
-    response = await model.call([ports.UserMessage(content="hi")])
+    response = await model.call([UserMessage(content="hi")])
 
     assert (attempts, response.completion) == (2, "second time lucky")
 
@@ -386,7 +401,7 @@ async def test_a_permanent_failure_is_not_retried() -> None:
     model = PydanticAIModel(FunctionModel(respond), max_retries=3)
 
     with pytest.raises(AuthenticationError):
-        await model.call([ports.UserMessage(content="hi")])
+        await model.call([UserMessage(content="hi")])
     assert attempts == 1
 
 
@@ -418,7 +433,7 @@ async def test_settings_and_tool_choice_reach_the_request() -> None:
         stop=["END"],
         openai_reasoning_effort="low",
     )
-    await model.call([ports.UserMessage(content="hi")], tool_choice="required")
+    await model.call([UserMessage(content="hi")], tool_choice="required")
 
     assert seen["temperature"] == 0.25
     assert seen["max_tokens"] == 64

@@ -4,7 +4,7 @@ from typing import Any
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from llmify._adapter import PydanticAIModel
+from llmify.pydantic_ai_adapter import PydanticAIModel
 
 
 class ReasoningEffort(StrEnum):

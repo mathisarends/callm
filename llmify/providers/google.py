@@ -3,7 +3,7 @@ from typing import Any
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
 
-from llmify._adapter import PydanticAIModel
+from llmify.pydantic_ai_adapter import PydanticAIModel
 
 
 class ChatGoogle(PydanticAIModel):

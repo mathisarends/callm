@@ -41,7 +41,6 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
-from llmify import ports
 from llmify.exceptions import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -49,6 +48,24 @@ from llmify.exceptions import (
     OutOfCreditsError,
     RateLimitError,
     RetryableError,
+)
+from llmify.ports import (
+    AssistantMessage,
+    ChatModel,
+    ImageUrl,
+    Message,
+    ModelEvent,
+    ModelResponse,
+    ModelTool,
+    SystemMessage,
+    TextDelta,
+    ThinkingDelta,
+    ToolCall,
+    ToolCallEvent,
+    ToolChoice,
+    ToolResultMessage,
+    Usage,
+    UserMessage,
 )
 from llmify.retries import RetryCallback, retry_call, retry_stream
 
@@ -61,7 +78,7 @@ answer is parsed in one place instead of three.
 """
 
 
-class PydanticAIModel(ports.ChatModel):
+class PydanticAIModel(ChatModel):
     """A `ChatModel` backed by a pydantic-ai model adapter."""
 
     def __init__(
@@ -108,12 +125,12 @@ class PydanticAIModel(ports.ChatModel):
 
     async def call[T: BaseModel](
         self,
-        messages: Sequence[ports.Message],
+        messages: Sequence[Message],
         *,
-        tools: Sequence[ports.ModelTool] = (),
-        tool_choice: ports.ToolChoice = "auto",
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
-    ) -> ports.ModelResponse[T] | ports.ModelResponse[str]:
+    ) -> ModelResponse[T] | ModelResponse[str]:
         parameters = _request_parameters(tools, output_format)
         settings = self._settings_for(tool_choice)
         history = _model_messages(messages)
@@ -128,16 +145,16 @@ class PydanticAIModel(ports.ChatModel):
 
     async def stream(
         self,
-        messages: Sequence[ports.Message],
+        messages: Sequence[Message],
         *,
-        tools: Sequence[ports.ModelTool] = (),
-        tool_choice: ports.ToolChoice = "auto",
-    ) -> AsyncIterator[ports.ModelEvent]:
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
+    ) -> AsyncIterator[ModelEvent]:
         parameters = _request_parameters(tools, None)
         settings = self._settings_for(tool_choice)
         history = _model_messages(messages)
 
-        async def attempt() -> AsyncIterator[ports.ModelEvent]:
+        async def attempt() -> AsyncIterator[ModelEvent]:
             async with self._model.request_stream(
                 history, settings, parameters
             ) as stream:
@@ -157,7 +174,7 @@ class PydanticAIModel(ports.ChatModel):
     async def aclose(self) -> None:
         await self._model.__aexit__(None, None, None)
 
-    def _settings_for(self, tool_choice: ports.ToolChoice) -> ModelSettings | None:
+    def _settings_for(self, tool_choice: ToolChoice) -> ModelSettings | None:
         return _settings({**(self._settings or {}), "tool_choice": tool_choice})
 
 
@@ -167,7 +184,7 @@ def _settings(values: dict[str, Any]) -> ModelSettings | None:
 
 
 def _request_parameters(
-    tools: Sequence[ports.ModelTool],
+    tools: Sequence[ModelTool],
     output_format: type[BaseModel] | None,
 ) -> ModelRequestParameters:
     function_tools = [
@@ -195,7 +212,7 @@ def _request_parameters(
     )
 
 
-def _model_messages(messages: Sequence[ports.Message]) -> list[ModelMessage]:
+def _model_messages(messages: Sequence[Message]) -> list[ModelMessage]:
     """Fold llmify's flat message list into pydantic-ai's request/response pairs.
 
     Consecutive user and tool-result messages join one request rather than each
@@ -213,11 +230,11 @@ def _model_messages(messages: Sequence[ports.Message]) -> list[ModelMessage]:
 
     for message in messages:
         match message:
-            case ports.SystemMessage():
+            case SystemMessage():
                 instructions = message.content
-            case ports.UserMessage():
+            case UserMessage():
                 pending.append(UserPromptPart(content=_user_content(message)))
-            case ports.ToolResultMessage():
+            case ToolResultMessage():
                 pending.append(
                     ToolReturnPart(
                         message.tool_name,
@@ -226,12 +243,10 @@ def _model_messages(messages: Sequence[ports.Message]) -> list[ModelMessage]:
                         outcome="failed" if message.is_error else "success",
                     )
                 )
-            case ports.AssistantMessage(
-                provider_state=PydanticModelResponse() as state
-            ):
+            case AssistantMessage(provider_state=PydanticModelResponse() as state):
                 flush()
                 history.append(state)
-            case ports.AssistantMessage():
+            case AssistantMessage():
                 flush()
                 history.append(PydanticModelResponse(parts=_assistant_parts(message)))
 
@@ -239,13 +254,13 @@ def _model_messages(messages: Sequence[ports.Message]) -> list[ModelMessage]:
     return history
 
 
-def _user_content(message: ports.UserMessage) -> str | list[UserContent]:
+def _user_content(message: UserMessage) -> str | list[UserContent]:
     if isinstance(message.content, str):
         return message.content
     return [part if isinstance(part, str) else _image(part) for part in message.content]
 
 
-def _image(image: ports.ImageUrl) -> BinaryContent | PydanticImageUrl:
+def _image(image: ImageUrl) -> BinaryContent | PydanticImageUrl:
     detail = {"detail": image.detail}
     if not image.url.startswith("data:"):
         return PydanticImageUrl(url=image.url, vendor_metadata=detail)
@@ -259,7 +274,7 @@ def _image(image: ports.ImageUrl) -> BinaryContent | PydanticImageUrl:
     )
 
 
-def _assistant_parts(message: ports.AssistantMessage) -> list[ModelResponsePart]:
+def _assistant_parts(message: AssistantMessage) -> list[ModelResponsePart]:
     parts: list[ModelResponsePart] = []
     if message.thinking:
         parts.append(ThinkingPart(content=message.thinking))
@@ -274,7 +289,7 @@ def _assistant_parts(message: ports.AssistantMessage) -> list[ModelResponsePart]
 def _response[T: BaseModel](
     response: PydanticModelResponse,
     output_format: type[T] | None,
-) -> ports.ModelResponse[T] | ports.ModelResponse[str]:
+) -> ModelResponse[T] | ModelResponse[str]:
     text = "".join(
         part.content for part in response.parts if isinstance(part, TextPart)
     )
@@ -289,7 +304,7 @@ def _response[T: BaseModel](
     if output_format is not None:
         completion, tool_calls = _structured(output_format, tool_calls)
 
-    return ports.ModelResponse(
+    return ModelResponse(
         completion=completion,
         thinking=thinking or None,
         finish_reason=response.finish_reason or "stop",
@@ -301,8 +316,8 @@ def _response[T: BaseModel](
 
 def _structured[T: BaseModel](
     output_format: type[T],
-    tool_calls: tuple[ports.ToolCall, ...],
-) -> tuple[T, tuple[ports.ToolCall, ...]]:
+    tool_calls: tuple[ToolCall, ...],
+) -> tuple[T, tuple[ToolCall, ...]]:
     """Split the output tool's call off the model's real tool calls and parse it."""
     answer = next((c for c in tool_calls if c.name == OUTPUT_TOOL_NAME), None)
     if answer is None:
@@ -322,16 +337,16 @@ def _structured[T: BaseModel](
     return parsed, tuple(c for c in tool_calls if c is not answer)
 
 
-def _tool_call(part: ToolCallPart) -> ports.ToolCall:
-    return ports.ToolCall(
+def _tool_call(part: ToolCallPart) -> ToolCall:
+    return ToolCall(
         id=part.tool_call_id,
         name=part.tool_name,
         arguments=part.args_as_json_str(),
     )
 
 
-def _usage(usage: RequestUsage) -> ports.Usage:
-    return ports.Usage(
+def _usage(usage: RequestUsage) -> Usage:
+    return Usage(
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
         cache_read_tokens=usage.cache_read_tokens,
@@ -339,19 +354,19 @@ def _usage(usage: RequestUsage) -> ports.Usage:
     )
 
 
-def _stream_event(event: ModelResponseStreamEvent) -> ports.ModelEvent | None:
+def _stream_event(event: ModelResponseStreamEvent) -> ModelEvent | None:
     """Narrow pydantic-ai's event stream to the three things llmify promises."""
     match event:
         case PartStartEvent(part=TextPart(content=content)) if content:
-            return ports.TextDelta(delta=content)
+            return TextDelta(delta=content)
         case PartStartEvent(part=ThinkingPart(content=content)) if content:
-            return ports.ThinkingDelta(delta=content)
+            return ThinkingDelta(delta=content)
         case PartDeltaEvent(delta=TextPartDelta(content_delta=delta)) if delta:
-            return ports.TextDelta(delta=delta)
+            return TextDelta(delta=delta)
         case PartDeltaEvent(delta=ThinkingPartDelta(content_delta=delta)) if delta:
-            return ports.ThinkingDelta(delta=delta)
+            return ThinkingDelta(delta=delta)
         case PartEndEvent(part=ToolCallPart() as part):
-            return ports.ToolCallEvent(tool_call=_tool_call(part))
+            return ToolCallEvent(tool_call=_tool_call(part))
     return None
 
 

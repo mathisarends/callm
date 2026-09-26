@@ -8,9 +8,9 @@ from pydantic_ai.providers.openai_codex import (
     OpenAICodexProvider,
 )
 
-from llmify._adapter import PydanticAIModel
 from llmify.exceptions import CredentialsUnavailableError
 from llmify.providers.openai import ReasoningEffort, openai_settings
+from llmify.pydantic_ai_adapter import PydanticAIModel
 
 
 class ChatCodex(PydanticAIModel):

@@ -3,8 +3,8 @@ from typing import Any
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.azure import AzureProvider
 
-from llmify._adapter import PydanticAIModel
 from llmify.providers.openai import ReasoningEffort, openai_settings
+from llmify.pydantic_ai_adapter import PydanticAIModel
 
 
 class ChatAzureOpenAI(PydanticAIModel):

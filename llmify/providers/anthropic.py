@@ -3,7 +3,7 @@ from typing import Any
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 
-from llmify._adapter import PydanticAIModel
+from llmify.pydantic_ai_adapter import PydanticAIModel
 
 
 class ChatAnthropic(PydanticAIModel):

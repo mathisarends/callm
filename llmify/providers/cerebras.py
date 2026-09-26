@@ -3,8 +3,8 @@ from typing import Any
 from pydantic_ai.models.cerebras import CerebrasModel
 from pydantic_ai.providers.cerebras import CerebrasProvider
 
-from llmify._adapter import PydanticAIModel
 from llmify.providers.openai import openai_settings
+from llmify.pydantic_ai_adapter import PydanticAIModel
 
 
 class ChatCerebras(PydanticAIModel):
