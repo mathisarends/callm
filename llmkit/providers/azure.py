@@ -5,9 +5,9 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.azure import AzureProvider
 from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
-from callm.providers.openai import ReasoningEffort, openai_settings
-from callm.pydantic_ai_adapter import PydanticAIModel, credentials_required
-from callm.retries import RetryCallback
+from llmkit.providers.openai import ReasoningEffort, openai_settings
+from llmkit.pydantic_ai_adapter import PydanticAIModel, credentials_required
+from llmkit.retries import RetryCallback
 
 
 class ChatAzureOpenAI(PydanticAIModel):

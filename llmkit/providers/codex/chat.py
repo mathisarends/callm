@@ -14,28 +14,28 @@ from pydantic_ai.providers.openai_codex import (
 )
 from pydantic_ai.settings import ModelSettings, ServiceTier, ThinkingLevel
 
-from callm.base import ModelEvent, ModelResponse, ModelTool, ToolChoice
-from callm.errors import ResponseInterruptedError
-from callm.messages import Message, SystemMessage
-from callm.providers.codex.transport import (
+from llmkit.base import ModelEvent, ModelResponse, ModelTool, ToolChoice
+from llmkit.errors import ResponseInterruptedError
+from llmkit.messages import Message, SystemMessage
+from llmkit.providers.codex.transport import (
     Transport,
     TransportFallbackCallback,
     TransportFallbackEvent,
     TransportPhase,
 )
-from callm.providers.codex.websocket import (
+from llmkit.providers.codex.websocket import (
     CodexResponsesResource,
     WebSocketInterrupted,
     WebSocketUnavailable,
 )
-from callm.providers.openai import ReasoningEffort, openai_settings
-from callm.pydantic_ai_adapter import (
+from llmkit.providers.openai import ReasoningEffort, openai_settings
+from llmkit.pydantic_ai_adapter import (
     PydanticAIModel,
     credentials_required,
     is_async_callable,
     model_messages,
 )
-from callm.retries import RetryCallback
+from llmkit.retries import RetryCallback
 
 _SESSION_HEADERS = ("session-id", "thread-id", "x-client-request-id")
 

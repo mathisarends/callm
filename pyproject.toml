@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "callm"
+name = "llmkit"
 version = "0.1.0"
 description = "A minimal, type-safe Python library for LLM chat completions with OpenAI, Azure OpenAI and Codex"
 readme = "README.md"
@@ -34,7 +34,7 @@ addopts = "-m 'not live'"
 markers = ["live: calls real provider APIs; run with `pytest -m live`"]
 
 [tool.coverage.run]
-source = ["callm"]
+source = ["llmkit"]
 branch = true
 
 [tool.coverage.report]
@@ -48,5 +48,5 @@ exclude_lines = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["callm*"]
+include = ["llmkit*"]
 exclude = ["tests*", "examples*"]

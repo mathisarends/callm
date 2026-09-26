@@ -11,7 +11,7 @@ from openai.types.responses import ResponseCompletedEvent
 from pydantic_ai.messages import ModelResponse as PydanticResponse
 from pydantic_ai.messages import TextPart
 
-from callm import (
+from llmkit import (
     ChatCodex,
     ModelResponse,
     OpenAICodexCredentials,
@@ -19,7 +19,7 @@ from callm import (
     Transport,
     UserMessage,
 )
-from callm.providers.codex.websocket import (
+from llmkit.providers.codex.websocket import (
     CodexResponsesResource,
     WebSocketInterrupted,
     WebSocketUnavailable,
@@ -48,7 +48,7 @@ def test_websocket_transport_without_websockets_installed_names_the_extra(
 ) -> None:
     monkeypatch.setitem(sys.modules, "websockets", None)
 
-    with pytest.raises(ImportError, match=r"callm\[websocket\]"):
+    with pytest.raises(ImportError, match=r"llmkit\[websocket\]"):
         _model("websocket")
 
 

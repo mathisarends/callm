@@ -7,7 +7,7 @@ from collections.abc import Callable
 import pytest
 from pydantic import BaseModel
 
-from callm import (
+from llmkit import (
     AssistantMessage,
     ChatCodex,
     ChatModel,

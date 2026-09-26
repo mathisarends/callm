@@ -2,7 +2,7 @@ import asyncio
 
 from dotenv import load_dotenv
 
-from callm import (
+from llmkit import (
     ChatOpenAIResponses,
     Message,
     ModelTool,

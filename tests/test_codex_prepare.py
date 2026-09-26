@@ -14,7 +14,7 @@ from pydantic_ai.messages import (
     ModelResponse as PydanticResponse,
 )
 
-from callm import (
+from llmkit import (
     AssistantMessage,
     ChatCodex,
     ModelResponse,
@@ -25,7 +25,7 @@ from callm import (
     TransportFallbackEvent,
     UserMessage,
 )
-from callm.providers.codex.websocket import (
+from llmkit.providers.codex.websocket import (
     CodexResponsesResource,
     WebSocketUnavailable,
 )

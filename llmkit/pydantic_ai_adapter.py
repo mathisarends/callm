@@ -1,6 +1,6 @@
-"""The one bridge between callm's contract and pydantic-ai's model adapters.
+"""The one bridge between llmkit's contract and pydantic-ai's model adapters.
 
-Every provider in `callm.providers` is this class plus the handful of lines it
+Every provider in `llmkit.providers` is this class plus the handful of lines it
 takes to build the right `pydantic_ai` model. Translation lives here once, so a
 new provider is a constructor and nothing else.
 """
@@ -49,7 +49,7 @@ from pydantic_ai.settings import ModelSettings, ServiceTier, ThinkingLevel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
-from callm.base import (
+from llmkit.base import (
     ChatModel,
     ModelEvent,
     ModelResponse,
@@ -60,7 +60,7 @@ from callm.base import (
     ToolChoice,
     Usage,
 )
-from callm.errors import (
+from llmkit.errors import (
     AuthenticationError,
     ContextLengthExceededError,
     CredentialsUnavailableError,
@@ -70,7 +70,7 @@ from callm.errors import (
     RateLimitError,
     RetryableError,
 )
-from callm.messages import (
+from llmkit.messages import (
     AssistantMessage,
     ImageUrl,
     Message,
@@ -79,7 +79,7 @@ from callm.messages import (
     ToolResultMessage,
     UserMessage,
 )
-from callm.retries import RetryCallback, retry_call, retry_stream
+from llmkit.retries import RetryCallback, retry_call, retry_stream
 
 OUTPUT_TOOL_NAME = "final_result"
 """The tool a model calls to deliver a structured answer.
@@ -298,7 +298,7 @@ def is_async_callable(value: object) -> bool:
 
 @contextmanager
 def credentials_required() -> Iterator[None]:
-    """Report a provider that cannot find its credentials as callm's error."""
+    """Report a provider that cannot find its credentials as llmkit's error."""
     try:
         yield
     except UserError as error:
@@ -354,7 +354,7 @@ def model_messages(
     initial_instructions: str | None = None,
     ensure_request: bool = False,
 ) -> list[ModelMessage]:
-    """Fold callm's flat message list into pydantic-ai's request/response pairs.
+    """Fold llmkit's flat message list into pydantic-ai's request/response pairs.
 
     Consecutive user and tool-result messages join one request rather than each
     becoming their own: several tool results answering one turn belong together,
@@ -534,7 +534,7 @@ def _usage(usage: RequestUsage) -> Usage:
 
 
 def _stream_event(event: ModelResponseStreamEvent) -> ModelEvent | None:
-    """Narrow pydantic-ai's event stream to the three things callm promises."""
+    """Narrow pydantic-ai's event stream to the three things llmkit promises."""
     match event:
         case PartStartEvent(part=TextPart(content=content)) if content:
             return TextDelta(delta=content)
@@ -564,7 +564,7 @@ _OUT_OF_CREDITS_MARKERS = (
 
 
 def _mapped_error(error: Exception) -> Exception:
-    """Translate a provider failure into callm's taxonomy.
+    """Translate a provider failure into llmkit's taxonomy.
 
     pydantic-ai normalises HTTP and connection failures into `ModelHTTPError`
     and `ModelAPIError` respectively for the providers used here.
