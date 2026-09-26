@@ -221,12 +221,13 @@ Provider failures arrive as llmify errors, whichever SDK raised them:
 | --- | --- |
 | `AuthenticationError` | credentials rejected (401, 403) |
 | `CredentialsUnavailableError` | credentials missing or unusable, a new login is needed |
-| `RateLimitError` | 429 — retryable |
+| `RateLimitError` | temporary 429 — retryable |
 | `RetryableError` | 5xx, 408, 409, 425, transport failures |
 | `OutOfCreditsError` | quota or billing exhausted |
 | `ContextLengthExceededError` | the input did not fit |
 | `ModelBehaviorError` | the answer did not fit the shape it was asked for |
 | `ProviderError` | another nonretryable provider HTTP error |
+| `ResponseInterruptedError` | a Codex WebSocket response started, then the connection broke; never replayed automatically |
 
 Retryable failures are retried with exponential backoff, honouring `Retry-After`
 when the provider sends one. A stream is only retried while nothing has been
@@ -310,8 +311,7 @@ model = ChatOpenAI(
 )
 ```
 
-The older `stop` and `default_headers` names still work as aliases. A setting's
-availability depends on the provider and model. Other provider-specific options
+A setting's availability depends on the provider and model. Other provider-specific options
 are passed to pydantic-ai as model settings:
 
 ```python

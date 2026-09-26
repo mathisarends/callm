@@ -94,7 +94,6 @@ class PydanticAIModel(ChatModel):
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
-        stop: Sequence[str] | None = None,
         # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
@@ -117,8 +116,6 @@ class PydanticAIModel(ChatModel):
     ) -> None:
         if "tool_choice" in settings:
             raise TypeError("'tool_choice' must be passed to call() or stream().")
-        if stop is not None and stop_sequences is not None:
-            raise ValueError("'stop' and 'stop_sequences' cannot both be set.")
         if not isinstance(max_retries, int) or isinstance(max_retries, bool):
             raise TypeError("'max_retries' must be an integer.")
         if max_retries < 0:
@@ -137,7 +134,6 @@ class PydanticAIModel(ChatModel):
         client = getattr(model, "client", None)
         if client is not None and hasattr(client, "max_retries"):
             client.max_retries = 0
-        stop_values = stop_sequences if stop_sequences is not None else stop
         self._settings = _settings(
             {
                 "max_tokens": max_tokens,
@@ -148,8 +144,8 @@ class PydanticAIModel(ChatModel):
                 "frequency_penalty": frequency_penalty,
                 "presence_penalty": presence_penalty,
                 "logit_bias": logit_bias,
-                "stop_sequences": list(stop_values)
-                if stop_values is not None
+                "stop_sequences": list(stop_sequences)
+                if stop_sequences is not None
                 else None,
                 "thinking": thinking,
                 "parallel_tool_calls": parallel_tool_calls,

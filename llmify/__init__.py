@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING, Any
-
 from .errors import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -9,6 +7,7 @@ from .errors import (
     OutOfCreditsError,
     ProviderError,
     RateLimitError,
+    ResponseInterruptedError,
     RetryableError,
 )
 from .base import (
@@ -31,33 +30,17 @@ from .base import (
     Usage,
     UserMessage,
 )
-from .providers import _MODULE_BY_NAME as _PROVIDER_NAMES
+from .providers import (
+    ChatAzureOpenAI,
+    ChatAzureOpenAIResponses,
+    ChatCodex,
+    ChatOpenAI,
+    ChatOpenAIResponses,
+    OpenAICodexCredentials,
+    OpenAICompatible,
+    ReasoningEffort,
+)
 from .retries import RetryCallback, RetryEvent
-
-if TYPE_CHECKING:
-    # Redundant aliases: these are re-exports, resolved at runtime by __getattr__.
-    from .providers import ChatAzureOpenAI as ChatAzureOpenAI
-    from .providers import ChatAzureOpenAIResponses as ChatAzureOpenAIResponses
-    from .providers import ChatCodex as ChatCodex
-    from .providers import ChatOpenAI as ChatOpenAI
-    from .providers import ChatOpenAIResponses as ChatOpenAIResponses
-    from .providers import OpenAICodexCredentials as OpenAICodexCredentials
-    from .providers import OpenAICompatible as OpenAICompatible
-    from .providers import ReasoningEffort as ReasoningEffort
-
-
-def __getattr__(name: str) -> Any:
-    if name in _PROVIDER_NAMES:
-        from . import providers
-
-        return getattr(providers, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-def __dir__() -> list[str]:
-    # PEP 562: without this, the lazily exported names are invisible to dir()
-    # and therefore to REPL and IDE completion.
-    return sorted({*globals(), *__all__})
 
 
 __all__ = [
@@ -86,6 +69,7 @@ __all__ = [
     "ProviderError",
     "RateLimitError",
     "ReasoningEffort",
+    "ResponseInterruptedError",
     "RetryCallback",
     "RetryEvent",
     "RetryableError",

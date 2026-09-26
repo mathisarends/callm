@@ -24,11 +24,9 @@ class ChatAzureOpenAI(PydanticAIModel):
         api_key: str | None = None,
         azure_endpoint: str | None = None,
         api_version: str | None = None,
-        default_headers: dict[str, str] | None = None,
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
-        stop: Sequence[str] | None = None,
         # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
@@ -60,7 +58,6 @@ class ChatAzureOpenAI(PydanticAIModel):
             ),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
-            stop=stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -72,9 +69,7 @@ class ChatAzureOpenAI(PydanticAIModel):
             parallel_tool_calls=parallel_tool_calls,
             service_tier=service_tier,
             timeout=timeout,
-            extra_headers=extra_headers
-            if extra_headers is not None
-            else default_headers,
+            extra_headers=extra_headers,
             extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,
@@ -94,11 +89,9 @@ class ChatAzureOpenAIResponses(PydanticAIModel):
         api_version: str | None = None,
         reasoning_effort: ReasoningEffort | str | None = None,
         reasoning_summary: str | None = None,
-        default_headers: dict[str, str] | None = None,
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
-        stop: Sequence[str] | None = None,
         # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
@@ -130,7 +123,6 @@ class ChatAzureOpenAIResponses(PydanticAIModel):
             ),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
-            stop=stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -142,9 +134,7 @@ class ChatAzureOpenAIResponses(PydanticAIModel):
             parallel_tool_calls=parallel_tool_calls,
             service_tier=service_tier,
             timeout=timeout,
-            extra_headers=extra_headers
-            if extra_headers is not None
-            else default_headers,
+            extra_headers=extra_headers,
             extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,

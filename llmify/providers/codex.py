@@ -12,10 +12,11 @@ from pydantic_ai.providers.openai_codex import (
 )
 from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
-from llmify.errors import CredentialsUnavailableError
+from llmify.errors import CredentialsUnavailableError, ResponseInterruptedError
 from llmify.base import Message, ModelEvent, ModelResponse, ModelTool, ToolChoice
 from llmify.providers.codex_transport import (
     CodexResponsesResource,
+    WebSocketInterrupted,
     WebSocketUnavailable,
     install_codex_responses_resource,
 )
@@ -44,7 +45,6 @@ class ChatCodex(PydanticAIModel):
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
-        stop: Sequence[str] | None = None,
         # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
@@ -89,7 +89,6 @@ class ChatCodex(PydanticAIModel):
             OpenAICodexModel(model, provider=provider),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
-            stop=stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -143,6 +142,8 @@ class ChatCodex(PydanticAIModel):
                     tool_choice=tool_choice,
                     output_format=output_format,
                 )
+        except WebSocketInterrupted as error:
+            raise ResponseInterruptedError(str(error)) from error
 
     async def stream(
         self,
@@ -173,6 +174,8 @@ class ChatCodex(PydanticAIModel):
                     messages, tools=tools, tool_choice=tool_choice
                 ):
                     yield event
+        except WebSocketInterrupted as error:
+            raise ResponseInterruptedError(str(error)) from error
 
     async def aclose(self) -> None:
         if self._responses_resource is not None:

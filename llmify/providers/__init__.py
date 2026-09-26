@@ -1,46 +1,16 @@
-"""The providers llmify ships, each imported only when it is asked for.
+"""Public provider classes and related configuration types."""
 
-Importing a provider pulls in its SDK, so `import llmify` stays cheap by
-deferring that until a provider is actually used.
-"""
+from .azure import ChatAzureOpenAI, ChatAzureOpenAIResponses
+from .codex import ChatCodex, OpenAICodexCredentials
+from .openai import ChatOpenAI, ChatOpenAIResponses, OpenAICompatible, ReasoningEffort
 
-from importlib import import_module
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    # Redundant aliases: these are re-exports, resolved at runtime by __getattr__.
-    from .azure import ChatAzureOpenAI as ChatAzureOpenAI
-    from .azure import ChatAzureOpenAIResponses as ChatAzureOpenAIResponses
-    from .codex import ChatCodex as ChatCodex
-    from .codex import OpenAICodexCredentials as OpenAICodexCredentials
-    from .openai import ChatOpenAI as ChatOpenAI
-    from .openai import ChatOpenAIResponses as ChatOpenAIResponses
-    from .openai import OpenAICompatible as OpenAICompatible
-    from .openai import ReasoningEffort as ReasoningEffort
-
-_MODULE_BY_NAME = {
-    "ChatAzureOpenAI": "azure",
-    "ChatAzureOpenAIResponses": "azure",
-    "ChatCodex": "codex",
-    "ChatOpenAI": "openai",
-    "ChatOpenAIResponses": "openai",
-    "OpenAICodexCredentials": "codex",
-    "OpenAICompatible": "openai",
-    "ReasoningEffort": "openai",
-}
-
-
-def __getattr__(name: str) -> Any:
-    module = _MODULE_BY_NAME.get(name)
-    if module is None:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    return getattr(import_module(f".{module}", __name__), name)
-
-
-def __dir__() -> list[str]:
-    # PEP 562: without this, the lazily exported names are invisible to dir()
-    # and therefore to REPL and IDE completion.
-    return sorted({*globals(), *__all__})
-
-
-__all__ = [*_MODULE_BY_NAME]
+__all__ = [
+    "ChatAzureOpenAI",
+    "ChatAzureOpenAIResponses",
+    "ChatCodex",
+    "ChatOpenAI",
+    "ChatOpenAIResponses",
+    "OpenAICodexCredentials",
+    "OpenAICompatible",
+    "ReasoningEffort",
+]

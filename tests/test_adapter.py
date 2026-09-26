@@ -535,7 +535,7 @@ def test_on_retry_must_be_async() -> None:
 # --- settings ---------------------------------------------------------------
 
 
-def test_named_settings_and_stop_alias() -> None:
+def test_named_settings() -> None:
     model = PydanticAIModel(
         FunctionModel(lambda m, i: ModelResponse(parts=[])),
         top_k=8,
@@ -550,13 +550,6 @@ def test_named_settings_and_stop_alias() -> None:
     assert model._settings["parallel_tool_calls"] is False
     assert model._settings["thinking"] == "low"
     assert model._settings["stop_sequences"] == ["END"]
-
-    with pytest.raises(ValueError, match="cannot both be set"):
-        PydanticAIModel(
-            FunctionModel(lambda m, i: ModelResponse(parts=[])),
-            stop=["A"],
-            stop_sequences=["B"],
-        )
 
     with pytest.raises(TypeError, match="passed to call"):
         PydanticAIModel(
@@ -576,7 +569,7 @@ async def test_settings_and_tool_choice_reach_the_request() -> None:
         FunctionModel(respond),
         temperature=0.25,
         max_tokens=64,
-        stop=["END"],
+        stop_sequences=["END"],
         openai_reasoning_effort="low",
     )
     await model.call([UserMessage(content="hi")], tool_choice="required")

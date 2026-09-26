@@ -38,11 +38,9 @@ class ChatOpenAI(PydanticAIModel):
         *,
         api_key: str | None = None,
         base_url: str | None = None,
-        default_headers: dict[str, str] | None = None,
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
-        stop: Sequence[str] | None = None,
         # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
@@ -69,7 +67,6 @@ class ChatOpenAI(PydanticAIModel):
             ),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
-            stop=stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -81,9 +78,7 @@ class ChatOpenAI(PydanticAIModel):
             parallel_tool_calls=parallel_tool_calls,
             service_tier=service_tier,
             timeout=timeout,
-            extra_headers=extra_headers
-            if extra_headers is not None
-            else default_headers,
+            extra_headers=extra_headers,
             extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,
@@ -107,11 +102,9 @@ class ChatOpenAIResponses(PydanticAIModel):
         base_url: str | None = None,
         reasoning_effort: ReasoningEffort | str | None = None,
         reasoning_summary: str | None = None,
-        default_headers: dict[str, str] | None = None,
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
-        stop: Sequence[str] | None = None,
         # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
@@ -138,7 +131,6 @@ class ChatOpenAIResponses(PydanticAIModel):
             ),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
-            stop=stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -150,9 +142,7 @@ class ChatOpenAIResponses(PydanticAIModel):
             parallel_tool_calls=parallel_tool_calls,
             service_tier=service_tier,
             timeout=timeout,
-            extra_headers=extra_headers
-            if extra_headers is not None
-            else default_headers,
+            extra_headers=extra_headers,
             extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,
@@ -173,11 +163,9 @@ class OpenAICompatible(PydanticAIModel):
         *,
         base_url: str,
         api_key: str | None = None,
-        default_headers: dict[str, str] | None = None,
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
-        stop: Sequence[str] | None = None,
         # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
@@ -204,7 +192,6 @@ class OpenAICompatible(PydanticAIModel):
             ),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
-            stop=stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
@@ -216,9 +203,7 @@ class OpenAICompatible(PydanticAIModel):
             parallel_tool_calls=parallel_tool_calls,
             service_tier=service_tier,
             timeout=timeout,
-            extra_headers=extra_headers
-            if extra_headers is not None
-            else default_headers,
+            extra_headers=extra_headers,
             extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,

@@ -12,6 +12,7 @@ from pydantic_ai.messages import TextPart
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 
 from llmify.base import UserMessage
+from llmify.errors import ResponseInterruptedError
 from llmify.providers.codex import ChatCodex
 from llmify.providers.codex_transport import (
     CodexResponsesResource,
@@ -127,6 +128,55 @@ def test_started_websocket_response_is_never_replayed() -> None:
                 await anext(stream)
                 await anext(stream)
         await client.close()
+
+    asyncio.run(run())
+
+
+def test_interrupted_call_is_classified_without_replay() -> None:
+    async def run() -> None:
+        model = _model()
+        attempts = 0
+
+        async def request(*_args: object) -> PydanticResponse:
+            nonlocal attempts
+            attempts += 1
+            raise WebSocketInterrupted("connection lost after response started")
+
+        model._model.request = request
+
+        with pytest.raises(ResponseInterruptedError) as caught:
+            await model.call([UserMessage(content="question")])
+
+        assert attempts == 1
+        assert isinstance(caught.value.__cause__, WebSocketInterrupted)
+        assert caught.value.code == "model_response_interrupted"
+        assert not caught.value.retryable
+        await model.aclose()
+
+    asyncio.run(run())
+
+
+def test_interrupted_stream_is_classified_without_replay() -> None:
+    async def run() -> None:
+        model = _model()
+        attempts = 0
+
+        @asynccontextmanager
+        async def request_stream(*_args: object):
+            nonlocal attempts
+            attempts += 1
+            raise WebSocketInterrupted("connection lost after response started")
+            yield  # pragma: no cover
+
+        model._model.request_stream = request_stream
+
+        with pytest.raises(ResponseInterruptedError) as caught:
+            async for _event in model.stream([UserMessage(content="question")]):
+                pass
+
+        assert attempts == 1
+        assert isinstance(caught.value.__cause__, WebSocketInterrupted)
+        await model.aclose()
 
     asyncio.run(run())
 

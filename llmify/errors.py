@@ -30,6 +30,13 @@ class ProviderError(LLMifyError):
         super().__init__(message, status_code=status_code)
 
 
+class ResponseInterruptedError(LLMifyError):
+    """A response began but its connection ended before completion."""
+
+    code = "model_response_interrupted"
+    user_message = "The model response was interrupted. Please try again."
+
+
 class RetryableError(LLMifyError):
     """A temporary provider, connection, or timeout failure."""
 

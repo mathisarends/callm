@@ -122,6 +122,8 @@ def test_common_options_are_explicit_keyword_parameters(provider: type) -> None:
         "on_retry",
     ):
         assert parameters[name].kind is Parameter.KEYWORD_ONLY
+    assert "stop" not in parameters
+    assert "default_headers" not in parameters
 
 
 def test_public_provider_forwards_named_settings() -> None:
@@ -157,14 +159,6 @@ def test_an_unknown_reasoning_effort_is_rejected_up_front() -> None:
         llmify.ChatOpenAIResponses("gpt-5.6", api_key="k", reasoning_effort="enormous")
 
 
-def test_default_headers_become_extra_headers() -> None:
-    model = llmify.ChatOpenAI(
-        "gpt-5.6", api_key="k", default_headers={"X-Tenant": "acme"}
-    )
-
-    assert model._settings["extra_headers"] == {"X-Tenant": "acme"}
-
-
 def test_unnamed_settings_pass_straight_through() -> None:
     model = llmify.ChatOpenAI(
         "gpt-5.6", api_key="k", temperature=0.2, service_tier="flex"
@@ -198,7 +192,7 @@ def test_codex_says_so_when_there_is_no_login(
         ChatCodex("gpt-5.6-terra")
 
 
-# --- lazy exports -----------------------------------------------------------
+# --- public exports ---------------------------------------------------------
 
 
 def test_every_exported_name_resolves() -> None:
@@ -214,7 +208,15 @@ def test_an_unknown_name_is_an_attribute_error() -> None:
         llmify.ChatSomethingElse  # type: ignore[attr-defined]
 
 
-def test_importing_llmify_does_not_import_every_sdk() -> None:
+def test_provider_package_reexports_the_public_providers() -> None:
+    import llmify.providers as providers
+
+    assert providers.ChatOpenAI is llmify.ChatOpenAI
+    assert providers.ChatCodex is llmify.ChatCodex
+    assert set(providers.__all__) <= set(dir(providers))
+
+
+def test_importing_llmify_does_not_require_websockets() -> None:
     import subprocess
     import sys
 
@@ -222,12 +224,12 @@ def test_importing_llmify_does_not_import_every_sdk() -> None:
         [
             sys.executable,
             "-c",
-            "import llmify, sys; print(int(any(m in sys.modules for m in "
-            "('openai',))))",
+            "import sys; sys.modules['websockets'] = None; "
+            "import llmify; print(llmify.ChatCodex.__name__)",
         ],
         capture_output=True,
         text=True,
         check=True,
     )
 
-    assert loaded.stdout.strip() == "0"
+    assert loaded.stdout.strip() == "ChatCodex"
