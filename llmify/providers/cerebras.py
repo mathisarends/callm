@@ -1,5 +1,3 @@
-"""Cerebras' OpenAI-compatible inference API."""
-
 from typing import Any
 
 from pydantic_ai.models.cerebras import CerebrasModel

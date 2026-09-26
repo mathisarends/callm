@@ -1,5 +1,3 @@
-"""OpenAI, and the endpoints that speak its wire format."""
-
 from enum import StrEnum
 from typing import Any
 

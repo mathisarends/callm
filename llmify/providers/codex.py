@@ -1,9 +1,3 @@
-"""OpenAI's Codex endpoint, authenticated with a ChatGPT subscription.
-
-This is a reverse-engineered endpoint: it authenticates with a subscription
-rather than an API key, and OpenAI neither documents nor supports it.
-"""
-
 import json
 import os
 from pathlib import Path

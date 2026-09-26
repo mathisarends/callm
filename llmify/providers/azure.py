@@ -1,5 +1,3 @@
-"""Azure's hosting of the OpenAI models."""
-
 from typing import Any
 
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel

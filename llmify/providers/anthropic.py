@@ -1,5 +1,3 @@
-"""Anthropic's Messages API."""
-
 from typing import Any
 
 from pydantic_ai.models.anthropic import AnthropicModel

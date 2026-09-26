@@ -1,5 +1,3 @@
-"""Google's Gemini API."""
-
 from typing import Any
 
 from pydantic_ai.models.google import GoogleModel
