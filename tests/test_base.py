@@ -19,7 +19,7 @@ class Recorder(base.ChatModel):
     def model(self) -> str:
         return "recorder"
 
-    async def call(self, messages, *, tools=(), tool_choice="auto", output_format=None):
+    async def call(self, messages, *, tools=(), tool_choice="auto", output_format=None):  # type: ignore[override]
         self.calls.append({"tool_choice": tool_choice, "output_format": output_format})
         return base.ModelResponse(completion="ok")
 

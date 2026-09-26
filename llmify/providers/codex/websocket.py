@@ -16,6 +16,7 @@ from openai.types.responses import (
     ResponseIncompleteEvent,
     ResponseStreamEvent,
 )
+from openai.types.responses.responses_client_event_param import ResponseCreate
 from openai.types.responses.responses_server_event import ResponseWsError
 from pydantic_ai.providers.openai_codex import (
     OpenAICodexCredentials,
@@ -241,8 +242,12 @@ class _WebSocketResponseStream:
     async def _send(self, connection: AsyncResponsesConnection) -> None:
         request = _websocket_request(self._request)
         if self._warmup:
+            # The SDK event type does not include Codex's warmup-only generate flag.
             await connection.send(
-                {"type": "response.create", **request, "generate": False}
+                cast(
+                    ResponseCreate,
+                    {"type": "response.create", **request, "generate": False},
+                )
             )
         else:
             await connection.response.create(**request)

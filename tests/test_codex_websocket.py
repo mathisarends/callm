@@ -2,6 +2,7 @@ import asyncio
 import sys
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,11 +10,15 @@ from openai import AsyncOpenAI
 from openai.types.responses import ResponseCompletedEvent
 from pydantic_ai.messages import ModelResponse as PydanticResponse
 from pydantic_ai.messages import TextPart
-from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 
-from llmify.messages import UserMessage
-from llmify.errors import ResponseInterruptedError
-from llmify.providers.codex import ChatCodex
+from llmify import (
+    ChatCodex,
+    ModelResponse,
+    OpenAICodexCredentials,
+    ResponseInterruptedError,
+    Transport,
+    UserMessage,
+)
 from llmify.providers.codex.websocket import (
     CodexResponsesResource,
     WebSocketInterrupted,
@@ -21,7 +26,7 @@ from llmify.providers.codex.websocket import (
 )
 
 
-def _model(transport: str = "websocket") -> ChatCodex:
+def _model(transport: Transport = "websocket") -> ChatCodex:
     credentials = OpenAICodexCredentials(
         access_token="access", refresh_token="refresh", account_id="account"
     )
@@ -60,7 +65,7 @@ def test_codex_transport_selection_and_http_fallback() -> None:
                 raise WebSocketUnavailable("socket unavailable")
             return PydanticResponse(parts=[TextPart(content="HTTP answer")])
 
-        model._model.request = request
+        cast(Any, model._model).request = request
         response = await model.call([UserMessage(content="question")])
         assert response.completion == "HTTP answer"
         assert http_calls == [False, True]
@@ -95,10 +100,11 @@ def test_stream_falls_back_only_before_response_starts() -> None:
                 raise WebSocketUnavailable("socket unavailable")
             yield EmptyStream()
 
-        model._model.request_stream = request_stream
+        cast(Any, model._model).request_stream = request_stream
         events = [
             event async for event in model.stream([UserMessage(content="question")])
         ]
+        assert isinstance(events[-1], ModelResponse)
         assert events[-1].completion == "HTTP answer"
         assert calls == [False, True]
         await model.aclose()
@@ -142,7 +148,7 @@ def test_interrupted_call_is_classified_without_replay() -> None:
             attempts += 1
             raise WebSocketInterrupted("connection lost after response started")
 
-        model._model.request = request
+        cast(Any, model._model).request = request
 
         with pytest.raises(ResponseInterruptedError) as caught:
             await model.call([UserMessage(content="question")])
@@ -168,7 +174,7 @@ def test_interrupted_stream_is_classified_without_replay() -> None:
             raise WebSocketInterrupted("connection lost after response started")
             yield  # pragma: no cover
 
-        model._model.request_stream = request_stream
+        cast(Any, model._model).request_stream = request_stream
 
         with pytest.raises(ResponseInterruptedError) as caught:
             async for _event in model.stream([UserMessage(content="question")]):

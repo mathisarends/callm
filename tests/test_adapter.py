@@ -8,6 +8,7 @@ from pydantic_ai.exceptions import (
 from pydantic_ai.messages import (
     BinaryContent,
     ModelMessage,
+    ModelRequest,
     ModelResponse,
     TextPart,
     ThinkingPart,
@@ -26,6 +27,17 @@ from pydantic_ai.models.function import (
 )
 from pydantic_ai.usage import RequestUsage
 
+from llmify.base import (
+    ModelEventType,
+    ModelTool,
+    TextDelta,
+    ThinkingDelta,
+    ToolCallEvent,
+    Usage,
+)
+from llmify.base import (
+    ModelResponse as LlmifyResponse,
+)
 from llmify.errors import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -34,13 +46,6 @@ from llmify.errors import (
     ProviderError,
     RateLimitError,
     RetryableError,
-)
-from llmify.base import (
-    ModelEventType,
-    ModelTool,
-    TextDelta,
-    ThinkingDelta,
-    Usage,
 )
 from llmify.messages import (
     AssistantMessage,
@@ -53,8 +58,8 @@ from llmify.messages import (
 from llmify.pydantic_ai_adapter import (
     PydanticAIModel,
     _mapped_error,
-    model_messages,
     _usage,
+    model_messages,
 )
 from llmify.retries import retry_delay
 
@@ -136,6 +141,7 @@ def test_a_system_message_becomes_instructions() -> None:
     )
 
     assert len(history) == 1
+    assert isinstance(history[0], ModelRequest)
     assert history[0].instructions == "be terse"
 
 
@@ -313,6 +319,8 @@ async def test_a_stream_yields_deltas_then_one_response() -> None:
         ModelEventType.TOOL_CALL,
         ModelEventType.RESPONSE,
     ]
+    assert isinstance(events[2], ToolCallEvent)
+    assert isinstance(events[-1], LlmifyResponse)
     assert events[2].tool_call == ToolCall(id="tc9", name="calc", arguments='{"x":1}')
     assert events[-1].completion == "Hello world"
     assert events[-1].tool_calls == (events[2].tool_call,)
@@ -328,6 +336,7 @@ async def test_a_stream_reports_thinking_separately_from_text() -> None:
 
     assert events[0] == ThinkingDelta(delta="hmm")
     assert events[1] == TextDelta(delta="answer")
+    assert isinstance(events[-1], LlmifyResponse)
     assert events[-1].thinking == "hmm"
 
 
@@ -480,6 +489,7 @@ async def test_a_stream_retries_connection_failure_before_output(
     events = [event async for event in model.stream([UserMessage(content="hi")])]
 
     assert attempts == 2
+    assert isinstance(events[-1], LlmifyResponse)
     assert events[-1].completion == "ok"
 
 
@@ -530,7 +540,7 @@ def test_on_retry_must_be_async() -> None:
     with pytest.raises(TypeError, match="async callable"):
         PydanticAIModel(
             FunctionModel(lambda m, i: ModelResponse(parts=[])),
-            on_retry=lambda _event: None,
+            on_retry=lambda _event: None,  # type: ignore[arg-type]
         )
 
 
@@ -547,11 +557,12 @@ def test_named_settings() -> None:
         stop_sequences=("END",),
     )
 
-    assert model._settings["top_k"] == 8
-    assert model._settings["frequency_penalty"] == 0.2
-    assert model._settings["parallel_tool_calls"] is False
-    assert model._settings["thinking"] == "low"
-    assert model._settings["stop_sequences"] == ["END"]
+    settings = dict(model._settings or {})
+    assert settings["top_k"] == 8
+    assert settings["frequency_penalty"] == 0.2
+    assert settings["parallel_tool_calls"] is False
+    assert settings["thinking"] == "low"
+    assert settings["stop_sequences"] == ["END"]
 
     with pytest.raises(TypeError, match="passed to call"):
         PydanticAIModel(

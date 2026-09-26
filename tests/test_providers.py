@@ -55,7 +55,9 @@ def test_an_openai_compatible_endpoint_keeps_its_base_url() -> None:
         "local-model", base_url="https://example.test/v1", api_key="k"
     )
 
+    assert model._model.base_url is not None
     assert model._model.base_url.startswith("https://example.test/v1")
+    assert isinstance(model._model, (OpenAIChatModel, OpenAIResponsesModel))
     assert model._model.client.max_retries == 0
 
 
@@ -135,9 +137,10 @@ def test_public_provider_forwards_named_settings() -> None:
         extra_headers={"X-Tenant": "acme"},
     )
 
-    assert model._settings["top_k"] == 8
-    assert model._settings["stop_sequences"] == ["END"]
-    assert model._settings["extra_headers"] == {"X-Tenant": "acme"}
+    settings = dict(model._settings or {})
+    assert settings["top_k"] == 8
+    assert settings["stop_sequences"] == ["END"]
+    assert settings["extra_headers"] == {"X-Tenant": "acme"}
 
 
 def test_reasoning_effort_becomes_a_model_setting() -> None:
@@ -145,13 +148,13 @@ def test_reasoning_effort_becomes_a_model_setting() -> None:
         "gpt-5.6", api_key="k", reasoning_effort=ReasoningEffort.HIGH
     )
 
-    assert model._settings["openai_reasoning_effort"] == "high"
+    assert dict(model._settings or {})["openai_reasoning_effort"] == "high"
 
 
 def test_reasoning_effort_also_accepts_the_plain_string() -> None:
     model = llmify.ChatOpenAIResponses("gpt-5.6", api_key="k", reasoning_effort="xhigh")
 
-    assert model._settings["openai_reasoning_effort"] == "xhigh"
+    assert dict(model._settings or {})["openai_reasoning_effort"] == "xhigh"
 
 
 def test_an_unknown_reasoning_effort_is_rejected_up_front() -> None:
@@ -164,8 +167,9 @@ def test_unnamed_settings_pass_straight_through() -> None:
         "gpt-5.6", api_key="k", temperature=0.2, service_tier="flex"
     )
 
-    assert model._settings["temperature"] == 0.2
-    assert model._settings["service_tier"] == "flex"
+    settings = dict(model._settings or {})
+    assert settings["temperature"] == 0.2
+    assert settings["service_tier"] == "flex"
 
 
 # --- codex ------------------------------------------------------------------
@@ -179,7 +183,7 @@ def test_codex_reads_the_cli_login(
     model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
 
     assert isinstance(model._model, OpenAICodexModel)
-    assert model._settings["openai_reasoning_effort"] == "high"
+    assert dict(model._settings or {})["openai_reasoning_effort"] == "high"
     assert model._model.client.max_retries == 0
 
 

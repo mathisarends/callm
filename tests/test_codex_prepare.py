@@ -1,27 +1,37 @@
 import asyncio
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 from openai import AsyncOpenAI
 from openai.types.responses import ResponseCompletedEvent
 from pydantic_ai.messages import (
     ModelRequest,
-    ModelResponse as PydanticResponse,
     TextPart,
 )
-from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
+from pydantic_ai.messages import (
+    ModelResponse as PydanticResponse,
+)
 
-from llmify.base import ModelTool
-from llmify.messages import AssistantMessage, SystemMessage, UserMessage
-from llmify.providers.codex import ChatCodex, TransportFallbackEvent
+from llmify import (
+    AssistantMessage,
+    ChatCodex,
+    ModelResponse,
+    ModelTool,
+    OpenAICodexCredentials,
+    SystemMessage,
+    Transport,
+    TransportFallbackEvent,
+    UserMessage,
+)
 from llmify.providers.codex.websocket import (
     CodexResponsesResource,
     WebSocketUnavailable,
 )
 
 
-def _model(transport: str = "websocket", **kwargs) -> ChatCodex:
+def _model(transport: Transport = "websocket", **kwargs) -> ChatCodex:
     credentials = OpenAICodexCredentials(
         access_token="access", refresh_token="refresh", account_id="account"
     )
@@ -33,7 +43,7 @@ def _model(transport: str = "websocket", **kwargs) -> ChatCodex:
 def _connected(model: ChatCodex) -> CodexResponsesResource:
     resource = model._responses_resource
     assert resource is not None
-    resource._connection = SimpleNamespace(close=AsyncMock())
+    cast(Any, resource)._connection = SimpleNamespace(close=AsyncMock())
     resource._connection_generation = 1
     return resource
 
@@ -57,7 +67,7 @@ def test_prepare_reuses_matching_prefix_once() -> None:
                 return PydanticResponse(parts=[], provider_response_id="warmup-id")
             return PydanticResponse(parts=[TextPart(content="answer")])
 
-        model._model.request = request
+        cast(Any, model._model).request = request
         system = SystemMessage(content="Answer briefly.")
         user = UserMessage(content="Question")
         tools = [ModelTool(name="lookup")]
@@ -102,7 +112,7 @@ def test_prepare_after_http_response_does_not_chain_to_http_response_id() -> Non
                 parts=[], provider_response_id="websocket-warmup-id"
             )
 
-        model._model.request = request
+        cast(Any, model._model).request = request
         http_response = PydanticResponse(
             parts=[TextPart(content="HTTP answer")],
             provider_response_id="http-response-id",
@@ -136,7 +146,7 @@ def test_prepare_uses_full_history_when_context_or_connection_changes() -> None:
             calls.append((history, settings))
             return PydanticResponse(parts=[TextPart(content="answer")])
 
-        model._model.request = request
+        cast(Any, model._model).request = request
         system = SystemMessage(content="System")
         user = UserMessage(content="Question")
         prepared_tools = [ModelTool(name="one")]
@@ -177,8 +187,8 @@ def test_stream_consumes_prepared_prefix() -> None:
             calls.append((history, settings))
             yield EmptyStream()
 
-        model._model.request = request
-        model._model.request_stream = request_stream
+        cast(Any, model._model).request = request
+        cast(Any, model._model).request_stream = request_stream
         system = SystemMessage(content="System")
         await model.prepare([system])
 
@@ -187,6 +197,7 @@ def test_stream_consumes_prepared_prefix() -> None:
             async for event in model.stream([system, UserMessage(content="Question")])
         ]
 
+        assert isinstance(events[-1], ModelResponse)
         assert events[-1].completion == "stream answer"
         assert calls[0][1]["openai_previous_response_id"] == "warmup-id"
         assert calls[0][0][0].parts[0].content == "Question"
@@ -214,7 +225,7 @@ def test_http_fallback_does_not_reuse_websocket_preparation() -> None:
                 raise WebSocketUnavailable("socket unavailable")
             return PydanticResponse(parts=[TextPart(content="HTTP answer")])
 
-        model._model.request = request
+        cast(Any, model._model).request = request
         system = SystemMessage(content="System")
         user = UserMessage(content="Question")
         await model.prepare([system])
@@ -246,7 +257,7 @@ def test_failed_prepare_reports_reason_and_leaves_no_prepared_state() -> None:
         async def request(_history, _settings, _parameters):
             raise WebSocketUnavailable("connection refused")
 
-        model._model.request = request
+        cast(Any, model._model).request = request
         await model.prepare([SystemMessage(content="System")])
 
         assert model._prepared_request is None
@@ -282,11 +293,12 @@ def test_stream_fallback_reports_phase_and_reason() -> None:
                 raise WebSocketUnavailable("handshake failed")
             yield EmptyStream()
 
-        model._model.request_stream = request_stream
+        cast(Any, model._model).request_stream = request_stream
         events = [
             event async for event in model.stream([UserMessage(content="Question")])
         ]
 
+        assert isinstance(events[-1], ModelResponse)
         assert events[-1].completion == "HTTP answer"
         assert fallback_events == [
             TransportFallbackEvent(phase="stream", reason="handshake failed")

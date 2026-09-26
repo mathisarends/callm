@@ -2,7 +2,7 @@ import inspect
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, get_args
+from typing import Any, get_args, overload
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -195,6 +195,26 @@ class ChatCodex(PydanticAIModel):
                 response_id=response_id,
                 connection_generation=generation,
             )
+
+    @overload
+    async def call[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T]: ...
+
+    @overload
+    async def call(
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
+        output_format: None = None,
+    ) -> ModelResponse[str]: ...
 
     async def call[T: BaseModel](
         self,

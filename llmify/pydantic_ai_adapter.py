@@ -8,7 +8,7 @@ new provider is a constructor and nothing else.
 import base64
 import inspect
 from collections.abc import AsyncIterator, Sequence
-from typing import Any
+from typing import Any, overload
 
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.exceptions import (
@@ -46,15 +46,6 @@ from pydantic_ai.settings import ModelSettings, ServiceTier, ThinkingLevel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
-from llmify.errors import (
-    AuthenticationError,
-    ContextLengthExceededError,
-    ModelBehaviorError,
-    OutOfCreditsError,
-    ProviderError,
-    RateLimitError,
-    RetryableError,
-)
 from llmify.base import (
     ChatModel,
     ModelEvent,
@@ -65,6 +56,15 @@ from llmify.base import (
     ToolCallEvent,
     ToolChoice,
     Usage,
+)
+from llmify.errors import (
+    AuthenticationError,
+    ContextLengthExceededError,
+    ModelBehaviorError,
+    OutOfCreditsError,
+    ProviderError,
+    RateLimitError,
+    RetryableError,
 )
 from llmify.messages import (
     AssistantMessage,
@@ -162,6 +162,26 @@ class PydanticAIModel(ChatModel):
     @property
     def model(self) -> str:
         return self._model.model_name
+
+    @overload
+    async def call[T: BaseModel](
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
+        output_format: type[T],
+    ) -> ModelResponse[T]: ...
+
+    @overload
+    async def call(
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
+        output_format: None = None,
+    ) -> ModelResponse[str]: ...
 
     async def call[T: BaseModel](
         self,
