@@ -38,14 +38,14 @@ here to go wrong.
 ## Installation
 
 ```bash
-pip install callm
+pip install pycallm
 ```
 
 This covers OpenAI, Azure OpenAI and Codex. The Codex WebSocket transport
 needs one more package:
 
 ```bash
-pip install callm[websocket]
+pip install pycallm[websocket]
 ```
 
 ## Quick start
