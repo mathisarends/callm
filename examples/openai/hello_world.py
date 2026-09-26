@@ -2,7 +2,7 @@ import asyncio
 
 from dotenv import load_dotenv
 
-from llmkit import ChatOpenAI, SystemMessage, UserMessage
+from callm import ChatOpenAI, SystemMessage, UserMessage
 
 load_dotenv(override=True)
 

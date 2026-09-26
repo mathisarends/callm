@@ -6,8 +6,8 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
-from llmkit.pydantic_ai_adapter import PydanticAIModel, credentials_required
-from llmkit.retries import RetryCallback
+from callm.pydantic_ai_adapter import PydanticAIModel, credentials_required
+from callm.retries import RetryCallback
 
 
 class ReasoningEffort(StrEnum):

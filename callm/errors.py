@@ -6,8 +6,8 @@ default UI message. Mapped SDK exceptions remain available as ``__cause__``.
 """
 
 
-class LlmkitError(Exception):
-    """Base exception for classified llmkit failures."""
+class CallmError(Exception):
+    """Base exception for classified callm failures."""
 
     code = "model_error"
     user_message = "The model request failed."
@@ -20,7 +20,7 @@ class LlmkitError(Exception):
         self.status_code = status_code
 
 
-class ProviderError(LlmkitError):
+class ProviderError(CallmError):
     """The provider rejected a request for a reason not classified more narrowly."""
 
     code = "model_provider_error"
@@ -30,14 +30,14 @@ class ProviderError(LlmkitError):
         super().__init__(message, status_code=status_code)
 
 
-class ResponseInterruptedError(LlmkitError):
+class ResponseInterruptedError(CallmError):
     """A response began but its connection ended before completion."""
 
     code = "model_response_interrupted"
     user_message = "The model response was interrupted. Please try again."
 
 
-class RetryableError(LlmkitError):
+class RetryableError(CallmError):
     """A temporary provider, connection, or timeout failure."""
 
     code = "model_temporarily_unavailable"
@@ -61,7 +61,7 @@ class RateLimitError(RetryableError):
         self.retry_after = retry_after
 
 
-class OutOfCreditsError(LlmkitError):
+class OutOfCreditsError(CallmError):
     """The account has insufficient credit or quota for this request."""
 
     code = "model_out_of_credits"
@@ -73,7 +73,7 @@ class OutOfCreditsError(LlmkitError):
         super().__init__(message, status_code=status_code)
 
 
-class ContextLengthExceededError(LlmkitError):
+class ContextLengthExceededError(CallmError):
     """The input exceeds the model's maximum context length."""
 
     code = "model_context_too_long"
@@ -88,7 +88,7 @@ class ContextLengthExceededError(LlmkitError):
         super().__init__(message, status_code=status_code)
 
 
-class ModelBehaviorError(LlmkitError):
+class ModelBehaviorError(CallmError):
     """The answer does not fit the shape requested by the application."""
 
     code = "model_invalid_response"
@@ -98,7 +98,7 @@ class ModelBehaviorError(LlmkitError):
         super().__init__(message)
 
 
-class AuthenticationError(LlmkitError):
+class AuthenticationError(CallmError):
     """The provider rejected the model credentials."""
 
     code = "model_authentication_failed"

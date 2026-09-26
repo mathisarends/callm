@@ -54,7 +54,7 @@ class CodexResponsesResource(AsyncResponses):
         if find_spec("websockets") is None:
             raise ImportError(
                 "transport='websocket' requires the 'websockets' package. "
-                "Install it with: pip install 'llmkit[websocket]'"
+                "Install it with: pip install 'callm[websocket]'"
             )
         super().__init__(client)
         self._provider = provider

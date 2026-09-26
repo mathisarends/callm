@@ -1,7 +1,7 @@
 import asyncio
 import time
 
-from llmkit import (
+from callm import (
     ChatCodex,
     CredentialsUnavailableError,
     Message,

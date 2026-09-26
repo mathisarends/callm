@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal, Self, overload
 
 from pydantic import BaseModel, Field
 
-from llmkit.messages import AssistantMessage, Frozen, Message, ToolCall
+from callm.messages import AssistantMessage, Frozen, Message, ToolCall
 
 
 class ModelEventType(StrEnum):

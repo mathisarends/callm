@@ -57,7 +57,7 @@ jobs:
         run: uv run --no-sync ruff check .
 
       - name: Check Ruff formatting
-        run: uv run --no-sync ruff format --check llmkit examples tests
+        run: uv run --no-sync ruff format --check callm examples tests
 
       - name: Run Pyright
-        run: uv run --no-sync pyright llmkit
+        run: uv run --no-sync pyright callm

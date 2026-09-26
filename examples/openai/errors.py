@@ -2,10 +2,10 @@ import asyncio
 
 from dotenv import load_dotenv
 
-from llmkit import (
+from callm import (
     AuthenticationError,
     ChatOpenAI,
-    LlmkitError,
+    CallmError,
     RetryEvent,
     UserMessage,
 )
@@ -39,7 +39,7 @@ async def main() -> None:
     ) as model:
         try:
             await model.call(question)
-        except LlmkitError as error:
+        except CallmError as error:
             print(f"{error.code} (retryable={error.retryable}): {error.user_message}")
 
 

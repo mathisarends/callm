@@ -3,12 +3,12 @@ from collections.abc import Callable
 
 from dotenv import load_dotenv
 
-from llmkit import (
+from callm import (
     ChatAzureOpenAI,
     ChatModel,
     ChatOpenAI,
     ChatOpenAIResponses,
-    LlmkitError,
+    CallmError,
     UserMessage,
 )
 
@@ -37,7 +37,7 @@ async def main() -> None:
         try:
             async with make() as model:
                 response = await model.call(question)
-        except LlmkitError as error:
+        except CallmError as error:
             print(f"{name:<18} skipped: {type(error).__name__}")
         else:
             print(f"{name:<18} {response.completion.strip()}")

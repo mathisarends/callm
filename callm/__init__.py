@@ -1,3 +1,15 @@
+from .errors import (
+    AuthenticationError,
+    ContextLengthExceededError,
+    CredentialsUnavailableError,
+    CallmError,
+    ModelBehaviorError,
+    OutOfCreditsError,
+    ProviderError,
+    RateLimitError,
+    ResponseInterruptedError,
+    RetryableError,
+)
 from .base import (
     ChatModel,
     ModelEvent,
@@ -9,18 +21,6 @@ from .base import (
     ToolCallEvent,
     ToolChoice,
     Usage,
-)
-from .errors import (
-    AuthenticationError,
-    ContextLengthExceededError,
-    CredentialsUnavailableError,
-    LlmkitError,
-    ModelBehaviorError,
-    OutOfCreditsError,
-    ProviderError,
-    RateLimitError,
-    ResponseInterruptedError,
-    RetryableError,
 )
 from .messages import (
     AssistantMessage,
@@ -47,6 +47,7 @@ from .providers import (
 )
 from .retries import RetryCallback, RetryEvent
 
+
 __all__ = [
     "AssistantMessage",
     "AuthenticationError",
@@ -59,7 +60,7 @@ __all__ = [
     "ContextLengthExceededError",
     "CredentialsUnavailableError",
     "ImageUrl",
-    "LlmkitError",
+    "CallmError",
     "Message",
     "MessageType",
     "ModelBehaviorError",

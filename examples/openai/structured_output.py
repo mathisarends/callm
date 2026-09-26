@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from llmkit import ChatOpenAI, UserMessage
+from callm import ChatOpenAI, UserMessage
 
 load_dotenv(override=True)
 

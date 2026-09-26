@@ -1,9 +1,9 @@
-# 🪄 llmkit
+# 🪄 callm
 
 A small, type-safe Python interface to the chat models, built on
 [pydantic-ai](https://github.com/pydantic/pydantic-ai).
 
-llmkit is the contract, not the transport. Five providers reach you through one
+callm is the contract, not the transport. Five providers reach you through one
 `ChatModel`: called for a turn, streamed for incremental results, and the same either way.
 The wire protocols underneath are pydantic-ai's, which is why there is so little
 here to go wrong.
@@ -38,21 +38,21 @@ here to go wrong.
 ## Installation
 
 ```bash
-pip install llmkit
+pip install callm
 ```
 
 This covers OpenAI, Azure OpenAI and Codex. The Codex WebSocket transport
 needs one more package:
 
 ```bash
-pip install llmkit[websocket]
+pip install callm[websocket]
 ```
 
 ## Quick start
 
 ```python
 import asyncio
-from llmkit import ChatOpenAI, SystemMessage, UserMessage
+from callm import ChatOpenAI, SystemMessage, UserMessage
 
 async def main():
     async with ChatOpenAI("gpt-6-sol") as model:
@@ -69,7 +69,7 @@ asyncio.run(main())
 
 ## The contract
 
-Everything public lives in `llmkit.messages` and `llmkit.base`, and every
+Everything public lives in `callm.messages` and `callm.base`, and every
 provider speaks exactly it.
 
 ### Messages
@@ -78,7 +78,7 @@ Four message types, all frozen, so a history can be shared between requests
 without one of them editing another's:
 
 ```python
-from llmkit import SystemMessage, UserMessage, AssistantMessage, ToolResultMessage
+from callm import SystemMessage, UserMessage, AssistantMessage, ToolResultMessage
 
 messages = [
     SystemMessage(content="You are a Python expert."),
@@ -121,7 +121,7 @@ the same value `call` would have returned. Tool calls are never streamed
 half-built: each one arrives once its arguments are complete.
 
 ```python
-from llmkit import ModelEventType
+from callm import ModelEventType
 
 async for event in model.stream(messages):
     match event.type:
@@ -161,7 +161,7 @@ A tool is a name, a description and a JSON schema. Running the calls the model
 asks for is up to you:
 
 ```python
-from llmkit import ModelTool, ToolResultMessage
+from callm import ModelTool, ToolResultMessage
 
 search_web = ModelTool(
     name="search_web",
@@ -173,7 +173,7 @@ search_web = ModelTool(
     },
 )
 
-messages = [UserMessage(content="Look up llmkit and summarise it.")]
+messages = [UserMessage(content="Look up callm and summarise it.")]
 
 while True:
     response = await model.call(messages, tools=[search_web])
@@ -194,7 +194,7 @@ while True:
 ### Images
 
 ```python
-from llmkit import ImageUrl, UserMessage
+from callm import ImageUrl, UserMessage
 
 UserMessage(content=(
     "What's in this image?",
@@ -212,7 +212,7 @@ fields; a counter a provider does not report stays zero.
 
 ### Errors and retries
 
-Provider failures arrive as llmkit errors, whichever SDK raised them:
+Provider failures arrive as callm errors, whichever SDK raised them:
 
 | Error | Raised when |
 | --- | --- |
@@ -250,7 +250,7 @@ Every constructor takes the model name first and falls back to the usual
 environment variable for credentials.
 
 ```python
-from llmkit import (
+from callm import (
     ChatOpenAI,            # OPENAI_API_KEY
     ChatOpenAIResponses,   # OPENAI_API_KEY — the Responses API
     ChatAzureOpenAI,       # AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
@@ -288,7 +288,7 @@ can send the existing context over the WebSocket without generating an answer.
 The next matching turn reuses that prepared context:
 
 ```python
-from llmkit import ChatCodex, Message, SystemMessage, UserMessage
+from callm import ChatCodex, Message, SystemMessage, UserMessage
 
 async with ChatCodex("gpt-6-sol", transport="websocket") as model:
     history: list[Message] = [SystemMessage(content="Answer briefly.")]

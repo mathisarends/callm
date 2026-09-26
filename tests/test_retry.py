@@ -1,7 +1,7 @@
 import pytest
 
-from llmkit.errors import RateLimitError, RetryableError
-from llmkit.retries import RetryEvent, retry_call, retry_delay
+from callm.errors import RateLimitError, RetryableError
+from callm.retries import RetryEvent, retry_call, retry_delay
 
 
 def test_uses_retry_after_from_rate_limit() -> None:
@@ -21,7 +21,7 @@ def test_uses_capped_exponential_backoff(
     retry_number: int,
     expected: float,
 ) -> None:
-    monkeypatch.setattr("llmkit.retries.random.uniform", lambda _start, _end: 1.0)
+    monkeypatch.setattr("callm.retries.random.uniform", lambda _start, _end: 1.0)
 
     assert retry_delay(RetryableError("transient"), retry_number) == expected
 
@@ -58,7 +58,7 @@ async def test_async_hook_gets_retry_after_and_next_attempt(
             raise RateLimitError(retry_after=3.4)
         return "ok"
 
-    monkeypatch.setattr("llmkit.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
 
     assert await retry_call(operation, max_retries=1, on_retry=on_retry) == "ok"
     assert attempts == 2
@@ -87,7 +87,7 @@ async def test_exhausted_budget_has_no_extra_hook(
         attempts += 1
         raise RetryableError("still unavailable")
 
-    monkeypatch.setattr("llmkit.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
 
     with pytest.raises(RetryableError, match="still unavailable"):
         await retry_call(operation, max_retries=2, on_retry=on_retry)

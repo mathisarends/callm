@@ -6,7 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from llmkit import ChatOpenAI, ImageUrl, UserMessage
+from callm import ChatOpenAI, ImageUrl, UserMessage
 
 load_dotenv(override=True)
 

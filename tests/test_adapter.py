@@ -31,7 +31,7 @@ from pydantic_ai.models.function import (
 from pydantic_ai.profiles import ModelProfile
 from pydantic_ai.usage import RequestUsage
 
-from llmkit.base import (
+from callm.base import (
     ModelEventType,
     ModelTool,
     TextDelta,
@@ -39,10 +39,10 @@ from llmkit.base import (
     ToolCallEvent,
     Usage,
 )
-from llmkit.base import (
-    ModelResponse as LlmkitResponse,
+from callm.base import (
+    ModelResponse as CallmResponse,
 )
-from llmkit.errors import (
+from callm.errors import (
     AuthenticationError,
     ContextLengthExceededError,
     ModelBehaviorError,
@@ -51,7 +51,7 @@ from llmkit.errors import (
     RateLimitError,
     RetryableError,
 )
-from llmkit.messages import (
+from callm.messages import (
     AssistantMessage,
     ImageUrl,
     Message,
@@ -60,13 +60,13 @@ from llmkit.messages import (
     ToolResultMessage,
     UserMessage,
 )
-from llmkit.pydantic_ai_adapter import (
+from callm.pydantic_ai_adapter import (
     PydanticAIModel,
     _mapped_error,
     _usage,
     model_messages,
 )
-from llmkit.retries import retry_delay
+from callm.retries import retry_delay
 
 PNG_PIXEL = (
     "data:image/png;base64,"
@@ -300,7 +300,7 @@ async def test_a_turn_that_only_calls_tools_has_no_completion_yet() -> None:
         [UserMessage(content="?")], tools=[ModelTool(name="calc")], output_format=Answer
     )
 
-    assert_type(response, LlmkitResponse[Answer | None])
+    assert_type(response, CallmResponse[Answer | None])
     assert response.completion is None
     assert [call.name for call in response.tool_calls] == ["calc"]
 
@@ -323,7 +323,7 @@ async def test_without_tools_a_structured_completion_is_never_none() -> None:
 
     response = await model.call([UserMessage(content="?")], output_format=Answer)
 
-    assert_type(response, LlmkitResponse[Answer])
+    assert_type(response, CallmResponse[Answer])
     assert response.completion == Answer(value=1, unit="x")
 
 
@@ -426,7 +426,7 @@ async def test_a_stream_yields_deltas_then_one_response() -> None:
         ModelEventType.RESPONSE,
     ]
     assert isinstance(events[2], ToolCallEvent)
-    assert isinstance(events[-1], LlmkitResponse)
+    assert isinstance(events[-1], CallmResponse)
     assert events[2].tool_call == ToolCall(id="tc9", name="calc", arguments='{"x":1}')
     assert events[-1].completion == "Hello world"
     assert events[-1].tool_calls == (events[2].tool_call,)
@@ -442,7 +442,7 @@ async def test_a_stream_reports_thinking_separately_from_text() -> None:
 
     assert events[0] == ThinkingDelta(delta="hmm")
     assert events[1] == TextDelta(delta="answer")
-    assert isinstance(events[-1], LlmkitResponse)
+    assert isinstance(events[-1], CallmResponse)
     assert events[-1].thinking == "hmm"
 
 
@@ -555,7 +555,7 @@ async def test_a_connection_failure_retries_and_notifies(
     async def no_sleep(_delay: float) -> None:
         pass
 
-    monkeypatch.setattr("llmkit.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
 
     def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         nonlocal attempts
@@ -582,7 +582,7 @@ async def test_a_stream_retries_connection_failure_before_output(
     async def no_sleep(_delay: float) -> None:
         pass
 
-    monkeypatch.setattr("llmkit.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
 
     async def stream(messages: list[ModelMessage], info: AgentInfo):
         nonlocal attempts
@@ -595,7 +595,7 @@ async def test_a_stream_retries_connection_failure_before_output(
     events = [event async for event in model.stream([UserMessage(content="hi")])]
 
     assert attempts == 2
-    assert isinstance(events[-1], LlmkitResponse)
+    assert isinstance(events[-1], CallmResponse)
     assert events[-1].completion == "ok"
 
 

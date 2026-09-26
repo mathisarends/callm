@@ -1,6 +1,6 @@
 import asyncio
 
-from llmkit import (
+from callm import (
     ChatCodex,
     CredentialsUnavailableError,
     ModelEventType,
