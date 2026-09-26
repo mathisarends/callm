@@ -8,7 +8,7 @@ load_dotenv(override=True)
 
 
 async def main() -> None:
-    model = ChatOpenAIResponses("gpt-5.6", reasoning_effort="low")
+    model = ChatOpenAIResponses("gpt-6-sol", reasoning_effort="low")
 
     async with model:
         async for event in model.stream(

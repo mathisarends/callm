@@ -16,15 +16,15 @@ class City(BaseModel):
 async def main() -> None:
     messages: list[Message] = [SystemMessage(content="Answer briefly.")]
 
-    async with ChatOpenAIResponses("gpt-5.6", reasoning_effort="low") as model:
+    async with ChatOpenAIResponses("gpt-6-sol", reasoning_effort="low") as model:
         # A structured turn and a plain turn share one history.
         messages.append(UserMessage(content="Pick a city in Japan."))
-        picked = await model(messages, output_format=City)
+        picked = await model.call(messages, output_format=City)
         messages.append(picked.as_assistant_message())
         print(f"picked: {picked.completion.name}, {picked.completion.country}")
 
         messages.append(UserMessage(content="What is it famous for? One sentence."))
-        answer = await model(messages)
+        answer = await model.call(messages)
         messages.append(answer.as_assistant_message())
         print(f"famous for: {answer.completion.strip()}")
 

@@ -105,12 +105,6 @@ async def test_call_returns_text_thinking_and_tool_calls() -> None:
     )
 
 
-async def test_calling_the_model_directly_is_the_same_as_call() -> None:
-    model = model_for(TextPart(content="4"))
-
-    assert (await model([UserMessage(content="2+2?")])).completion == "4"
-
-
 async def test_tools_reach_the_model_as_definitions() -> None:
     seen: list[str] = []
 

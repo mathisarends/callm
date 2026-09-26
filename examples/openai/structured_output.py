@@ -15,8 +15,8 @@ class Recipe(BaseModel):
 
 
 async def main() -> None:
-    async with ChatOpenAI("gpt-5.6") as model:
-        response = await model(
+    async with ChatOpenAI("gpt-6-sol", reasoning_effort="none") as model:
+        response = await model.call(
             [UserMessage(content="Give me a recipe for pancakes.")],
             output_format=Recipe,
         )

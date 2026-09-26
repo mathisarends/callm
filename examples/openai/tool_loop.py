@@ -32,9 +32,9 @@ async def main() -> None:
         UserMessage(content="How many more people live in Berlin than in Zurich?"),
     ]
 
-    async with ChatOpenAIResponses("gpt-5.6") as model:
+    async with ChatOpenAIResponses("gpt-6-sol") as model:
         while True:
-            response = await model(messages, tools=[CITY_POPULATION])
+            response = await model.call(messages, tools=[CITY_POPULATION])
             messages.append(response.as_assistant_message())
 
             if not response.tool_calls:

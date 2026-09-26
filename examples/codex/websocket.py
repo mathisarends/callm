@@ -29,7 +29,7 @@ async def conversation(transport: Transport) -> None:
     # One model for the whole conversation: over "websocket" the first turn
     # opens the connection and every later turn reuses it.
     async with ChatCodex(
-        "gpt-5.6-terra",
+        "gpt-6-sol",
         transport=transport,
         on_transport_fallback=show_fallback,
     ) as model:
@@ -40,7 +40,7 @@ async def conversation(transport: Transport) -> None:
             messages.append(UserMessage(content=question))
             started = time.perf_counter()
 
-            response = await model(messages)
+            response = await model.call(messages)
             messages.append(response.as_assistant_message())
 
             elapsed = time.perf_counter() - started

@@ -21,7 +21,7 @@ WEATHER = ModelTool(
 
 async def main() -> None:
     try:
-        model = ChatCodex("gpt-5.6-terra", reasoning_effort="low")
+        model = ChatCodex("gpt-6-sol", reasoning_effort="low")
     except CredentialsUnavailableError as error:
         print(error)
         return

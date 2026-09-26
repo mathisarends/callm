@@ -6,7 +6,7 @@ A small, type-safe Python interface to the chat models, built on
 [pydantic-ai](https://github.com/pydantic/pydantic-ai).
 
 llmify is the contract, not the transport. Seven providers reach you through one
-`ChatModel`: awaited for a turn, iterated for a stream, and the same either way.
+`ChatModel`: called for a turn, streamed for incremental results, and the same either way.
 The wire protocols underneath are pydantic-ai's, which is why there is so little
 here to go wrong.
 
@@ -57,8 +57,8 @@ import asyncio
 from llmify import ChatOpenAI, SystemMessage, UserMessage
 
 async def main():
-    async with ChatOpenAI("gpt-5.6") as model:
-        response = await model([
+    async with ChatOpenAI("gpt-6-sol") as model:
+        response = await model.call([
             SystemMessage(content="You are a helpful assistant."),
             UserMessage(content="What is 2+2?"),
         ])
@@ -95,12 +95,10 @@ in the history, which is what every provider actually wants.
 
 ### Calling
 
-`call` runs one turn and returns it whole. `await model(...)` is the same thing,
-spelled shorter:
+`call` runs one turn and returns it whole:
 
 ```python
 response = await model.call(messages)
-response = await model(messages)     # identical
 ```
 
 A `ModelResponse` carries:
@@ -151,7 +149,7 @@ class Recipe(BaseModel):
     minutes: int
     ingredients: list[str]
 
-response = await model(messages, output_format=Recipe)
+response = await model.call(messages, output_format=Recipe)
 response.completion.ingredients  # list[str]
 ```
 
@@ -180,7 +178,7 @@ search_web = ModelTool(
 messages = [UserMessage(content="Look up llmify and summarise it.")]
 
 while True:
-    response = await model(messages, tools=[search_web])
+    response = await model.call(messages, tools=[search_web])
     messages.append(response.as_assistant_message())
     if not response.tool_calls:
         break
@@ -241,7 +239,7 @@ async def log_retry(event):
     print(f"attempt {event.failed_attempt}/{event.max_attempts} failed, "
           f"retrying in {event.delay:.1f}s: {event.error.code}")
 
-model = ChatOpenAI("gpt-5.6", max_retries=3, on_retry=log_retry)
+model = ChatOpenAI("gpt-6-sol", max_retries=3, on_retry=log_retry)
 ```
 
 For UI messages, use `event.error.user_message` and `event.delay`. Use
@@ -263,7 +261,7 @@ from llmify import (
     OpenAICompatible,      # anything else speaking OpenAI's API
 )
 
-model = ChatOpenAI("gpt-5.6", api_key="sk-...", base_url="https://...")
+model = ChatOpenAI("gpt-6-sol", api_key="sk-...", base_url="https://...")
 model = ChatAzureOpenAI("my-deployment", api_version="2024-10-01")
 model = OpenAICompatible("llama-3.3-70b", base_url="http://localhost:11434/v1")
 ```
@@ -281,7 +279,7 @@ If the [Codex CLI](https://github.com/openai/codex) is logged in, its session
 is borrowed:
 
 ```python
-model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
+model = ChatCodex("gpt-6-sol", reasoning_effort="high")
 ```
 
 `ChatCodex` uses HTTP by default. Set `transport="websocket"` to reuse a
@@ -296,7 +294,7 @@ The next matching turn reuses that prepared context:
 ```python
 from llmify import ChatCodex, Message, SystemMessage, UserMessage
 
-async with ChatCodex("gpt-5.6-terra", transport="websocket") as model:
+async with ChatCodex("gpt-6-sol", transport="websocket") as model:
     history: list[Message] = [SystemMessage(content="Answer briefly.")]
     await model.prepare(history)
     history.append(UserMessage(content="Name one European capital."))
@@ -325,7 +323,8 @@ constructor. The IDE can show their types and defaults:
 
 ```python
 model = ChatOpenAI(
-    "gpt-5.6",
+    "gpt-6-sol",
+    reasoning_effort="none",
     max_tokens=1000,
     temperature=0.7,
     stop_sequences=["\n\n"],
@@ -339,7 +338,7 @@ A setting's availability depends on the provider and model. Other provider-speci
 are passed to pydantic-ai as model settings:
 
 ```python
-model = ChatOpenAIResponses("gpt-5.6", openai_text_verbosity="low")
+model = ChatOpenAIResponses("gpt-6-sol", openai_text_verbosity="low")
 ```
 
 See [pydantic-ai's model settings](https://ai.pydantic.dev/api/settings/) for

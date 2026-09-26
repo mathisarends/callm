@@ -124,13 +124,16 @@ def test_provider_state_stays_out_of_the_repr() -> None:
     assert "a-secret-looking-blob" not in repr(response)
 
 
-async def test_calling_the_model_delegates_to_call() -> None:
+async def test_call_is_the_only_turn_method() -> None:
     model = Recorder()
 
-    response = await model([messages.UserMessage(content="hi")], tool_choice="required")
+    response = await model.call(
+        [messages.UserMessage(content="hi")], tool_choice="required"
+    )
 
     assert response.completion == "ok"
     assert model.calls == [{"tool_choice": "required", "output_format": None}]
+    assert not callable(model)
 
 
 async def test_the_context_manager_closes_the_model() -> None:

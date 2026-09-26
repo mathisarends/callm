@@ -67,7 +67,7 @@ async def run_tool_loop(
     keep_provider_state: bool = True,
 ) -> ModelResponse[str]:
     for _ in range(5):
-        response = await model(messages, tools=[POPULATION])
+        response = await model.call(messages, tools=[POPULATION])
         turn = response.as_assistant_message()
         if not keep_provider_state:
             turn = turn.model_copy(update={"provider_state": None})
@@ -88,7 +88,7 @@ async def run_tool_loop(
 
 
 async def test_a_turn_returns_text_and_usage(model: ChatModel) -> None:
-    response = await model([UserMessage(content="What is 2+2? Digits only.")])
+    response = await model.call([UserMessage(content="What is 2+2? Digits only.")])
 
     assert "4" in response.completion
     assert response.finish_reason == "stop"
@@ -98,7 +98,7 @@ async def test_a_turn_returns_text_and_usage(model: ChatModel) -> None:
 
 
 async def test_the_system_message_is_followed(model: ChatModel) -> None:
-    response = await model(
+    response = await model.call(
         [
             SystemMessage(content="Reply with the single word BANANA, nothing else."),
             UserMessage(content="Hello!"),
@@ -111,7 +111,7 @@ async def test_the_system_message_is_followed(model: ChatModel) -> None:
 async def test_a_history_without_provider_state_is_understood(
     model: ChatModel,
 ) -> None:
-    response = await model(
+    response = await model.call(
         [
             UserMessage(content="My name is Zed."),
             AssistantMessage(content="Nice to meet you, Zed."),
@@ -126,7 +126,7 @@ async def test_one_model_serves_concurrent_turns(model: ChatModel) -> None:
     questions = ["1+1? Digits only.", "2+3? Digits only.", "4+4? Digits only."]
 
     responses = await asyncio.gather(
-        *(model([UserMessage(content=q)]) for q in questions)
+        *(model.call([UserMessage(content=q)]) for q in questions)
     )
 
     assert ["2" in responses[0].completion, "5" in responses[1].completion] == [
@@ -177,7 +177,7 @@ async def test_a_streamed_tool_call_is_emitted_and_returned(model: ChatModel) ->
 
 
 async def test_structured_output_is_parsed(model: ChatModel) -> None:
-    response = await model(
+    response = await model.call(
         [UserMessage(content="Which city is the capital of France?")],
         output_format=City,
     )
@@ -190,13 +190,13 @@ async def test_a_structured_turn_can_be_followed_by_a_plain_one(
     model: ChatModel,
 ) -> None:
     messages: list[Message] = [UserMessage(content="Capital of France?")]
-    first = await model(messages, output_format=City)
+    first = await model.call(messages, output_format=City)
     messages += [
         first.as_assistant_message(),
         UserMessage(content="And the capital of Germany? Just the name."),
     ]
 
-    second = await model(messages)
+    second = await model.call(messages)
 
     assert "Berlin" in second.completion
 
@@ -209,7 +209,7 @@ async def test_structured_output_can_follow_a_tool_loop(model: ChatModel) -> Non
     await run_tool_loop(model, messages)
     messages.append(UserMessage(content="Now give me that city as structured data."))
 
-    response = await model(messages, output_format=City)
+    response = await model.call(messages, output_format=City)
 
     assert response.completion.name == "Berlin"
 
@@ -229,7 +229,9 @@ async def test_a_structured_tool_loop_answers_once_the_tools_are_done(
     completions: list[Population | None] = []
 
     for _ in range(5):
-        response = await model(messages, tools=[POPULATION], output_format=Population)
+        response = await model.call(
+            messages, tools=[POPULATION], output_format=Population
+        )
         completions.append(response.completion)
         messages.append(response.as_assistant_message())
         if not response.tool_calls:
@@ -255,7 +257,7 @@ async def test_a_base64_image_is_seen(
 ) -> None:
     image = ImageUrl(url=data_uri(solid_png(rgb)), detail="low")
 
-    response = await model(
+    response = await model.call(
         [UserMessage(content=("Which colour fills this image? One word.", image))]
     )
 
@@ -267,7 +269,7 @@ async def test_a_linked_image_is_seen(model: ChatModel) -> None:
         url="https://raw.githubusercontent.com/github/explore/main/topics/python/python.png"
     )
 
-    response = await model(
+    response = await model.call(
         [UserMessage(content=("Which programming language's logo is this?", image))]
     )
 
@@ -278,7 +280,7 @@ async def test_several_images_in_one_message_are_all_seen(model: ChatModel) -> N
     red = ImageUrl(url=data_uri(solid_png((255, 0, 0))), detail="low")
     green = ImageUrl(url=data_uri(solid_png((0, 255, 0))), detail="low")
 
-    response = await model(
+    response = await model.call(
         [UserMessage(content=("Name the colour of each image, in order.", red, green))]
     )
 
@@ -290,7 +292,7 @@ async def test_several_images_in_one_message_are_all_seen(model: ChatModel) -> N
 
 
 async def test_tool_choice_required_forces_a_call(model: ChatModel) -> None:
-    response = await model(
+    response = await model.call(
         [UserMessage(content="How many people live in Berlin?")],
         tools=[POPULATION],
         tool_choice="required",
@@ -302,7 +304,7 @@ async def test_tool_choice_required_forces_a_call(model: ChatModel) -> None:
 
 
 async def test_tool_choice_none_forbids_calls(model: ChatModel) -> None:
-    response = await model(
+    response = await model.call(
         [UserMessage(content="How many people live in Berlin?")],
         tools=[POPULATION],
         tool_choice="none",
@@ -330,7 +332,7 @@ async def test_a_tool_loop_uses_the_tool_result(
 
 async def test_a_failed_tool_result_is_reported_back(model: ChatModel) -> None:
     messages: list[Message] = [UserMessage(content="How many people live in Berlin?")]
-    first = await model(messages, tools=[POPULATION], tool_choice="required")
+    first = await model.call(messages, tools=[POPULATION], tool_choice="required")
     messages.append(first.as_assistant_message())
     messages += [
         ToolResultMessage(
@@ -342,7 +344,7 @@ async def test_a_failed_tool_result_is_reported_back(model: ChatModel) -> None:
         for call in first.tool_calls
     ]
 
-    second = await model(messages, tools=[POPULATION], tool_choice="none")
+    second = await model.call(messages, tools=[POPULATION], tool_choice="none")
 
     assert second.completion
 
@@ -361,11 +363,11 @@ async def test_a_prepared_websocket_conversation_continues(
         assert isinstance(model, ChatCodex)
         await model.prepare(messages)
         messages.append(UserMessage(content="Capital of Italy?"))
-        first = await model(messages)
+        first = await model.call(messages)
         messages.append(first.as_assistant_message())
         await model.prepare(messages)
         messages.append(UserMessage(content="And of Spain?"))
-        second = await model(messages)
+        second = await model.call(messages)
 
     assert "Rome" in first.completion
     assert "Madrid" in second.completion

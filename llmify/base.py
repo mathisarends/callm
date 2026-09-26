@@ -90,7 +90,7 @@ type ModelEvent = Annotated[
 
 
 class ChatModel(ABC):
-    """A chat model: awaited for a whole turn, iterated for a stream."""
+    """A chat model: call for a whole turn, stream for incremental results."""
 
     @property
     @abstractmethod
@@ -151,52 +151,6 @@ class ChatModel(ABC):
     @abstractmethod
     async def aclose(self) -> None:
         """Release the underlying HTTP client."""
-
-    @overload
-    async def __call__[T: BaseModel](
-        self,
-        messages: Sequence[Message],
-        *,
-        tools: tuple[()] = (),
-        tool_choice: ToolChoice = "auto",
-        output_format: type[T],
-    ) -> ModelResponse[T]: ...
-
-    @overload
-    async def __call__[T: BaseModel](
-        self,
-        messages: Sequence[Message],
-        *,
-        tools: Sequence[ModelTool],
-        tool_choice: ToolChoice = "auto",
-        output_format: type[T],
-    ) -> ModelResponse[T | None]: ...
-
-    @overload
-    async def __call__(
-        self,
-        messages: Sequence[Message],
-        *,
-        tools: Sequence[ModelTool] = (),
-        tool_choice: ToolChoice = "auto",
-        output_format: None = None,
-    ) -> ModelResponse[str]: ...
-
-    async def __call__[T: BaseModel](
-        self,
-        messages: Sequence[Message],
-        *,
-        tools: Sequence[ModelTool] = (),
-        tool_choice: ToolChoice = "auto",
-        output_format: type[T] | None = None,
-    ) -> ModelResponse[T] | ModelResponse[T | None] | ModelResponse[str]:
-        """Convenience alias for ``call``, so ``await model(messages)`` reads as a call."""
-        return await self.call(
-            messages,
-            tools=tools,
-            tool_choice=tool_choice,
-            output_format=output_format,
-        )
 
     async def __aenter__(self) -> Self:
         return self

@@ -24,8 +24,10 @@ async def main() -> None:
     # A public https:// URL works the same way: ImageUrl(url="https://...")
     image = ImageUrl(url=data_uri(path), detail="high")
 
-    async with ChatOpenAI("gpt-5.6") as model:
-        response = await model([UserMessage(content=("What is in this image?", image))])
+    async with ChatOpenAI("gpt-6-sol") as model:
+        response = await model.call(
+            [UserMessage(content=("What is in this image?", image))]
+        )
 
     print(response.completion)
 

@@ -8,8 +8,8 @@ load_dotenv(override=True)
 
 
 async def main() -> None:
-    async with ChatOpenAI("gpt-5.6") as model:
-        response = await model(
+    async with ChatOpenAI("gpt-6-sol") as model:
+        response = await model.call(
             [
                 SystemMessage(content="You are a helpful assistant."),
                 UserMessage(content="What is 2+2?"),

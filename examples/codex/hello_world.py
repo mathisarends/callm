@@ -5,13 +5,13 @@ from llmify import ChatCodex, CredentialsUnavailableError, UserMessage
 
 async def main() -> None:
     try:
-        model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
+        model = ChatCodex("gpt-6-sol", reasoning_effort="high")
     except CredentialsUnavailableError as error:
         print(error)
         return
 
     async with model:
-        response = await model([UserMessage(content="What is 2+2?")])
+        response = await model.call([UserMessage(content="What is 2+2?")])
 
     print(response.completion)
 
