@@ -13,8 +13,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from llmify.messages import UserMessage
-from llmify.errors import (
+from callm.errors import (
     AuthenticationError,
     ContextLengthExceededError,
     ModelBehaviorError,
@@ -23,8 +22,9 @@ from llmify.errors import (
     RateLimitError,
     RetryableError,
 )
-from llmify.pydantic_ai_adapter import PydanticAIModel
-from llmify.retries import RetryEvent
+from callm.messages import UserMessage
+from callm.pydantic_ai_adapter import PydanticAIModel
+from callm.retries import RetryEvent
 
 
 @pytest.mark.parametrize(
@@ -72,7 +72,7 @@ async def test_classified_errors_control_attempts_and_hooks(
             raise original
         return ModelResponse(parts=[TextPart(content="ok")])
 
-    monkeypatch.setattr("llmify.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
     model = PydanticAIModel(FunctionModel(respond), max_retries=1, on_retry=on_retry)
 
     if retry:
@@ -123,7 +123,7 @@ async def test_openai_sdk_sends_only_visible_attempts(
     async def on_retry(event: RetryEvent) -> None:
         events.append(event)
 
-    monkeypatch.setattr("llmify.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
     async with httpx2.AsyncClient(
         transport=httpx2.MockTransport(respond)
     ) as http_client:
@@ -186,7 +186,7 @@ async def test_stream_503_uses_exact_retry_budget(
     async def on_retry(event: RetryEvent) -> None:
         events.append(event)
 
-    monkeypatch.setattr("llmify.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
     async with httpx2.AsyncClient(
         transport=httpx2.MockTransport(respond)
     ) as http_client:
@@ -226,7 +226,7 @@ async def test_sdk_connection_and_timeout_failures_reach_retry_hook(
     async def on_retry(event: RetryEvent) -> None:
         events.append(event)
 
-    monkeypatch.setattr("llmify.retries.asyncio.sleep", no_sleep)
+    monkeypatch.setattr("callm.retries.asyncio.sleep", no_sleep)
     async with httpx2.AsyncClient(
         transport=httpx2.MockTransport(respond)
     ) as http_client:

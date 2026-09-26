@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from llmify import base, messages
+from callm import base, messages
 
 
 class Answer(BaseModel):

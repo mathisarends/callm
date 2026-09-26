@@ -9,7 +9,7 @@ from .codex import (
     TransportFallbackEvent,
     TransportPhase,
 )
-from .openai import ChatOpenAI, ChatOpenAIResponses, OpenAICompatible, ReasoningEffort
+from .openai import ChatOpenAI, ChatOpenAIResponses, ReasoningEffort
 
 __all__ = [
     "ChatAzureOpenAI",
@@ -18,7 +18,6 @@ __all__ = [
     "ChatOpenAI",
     "ChatOpenAIResponses",
     "OpenAICodexCredentials",
-    "OpenAICompatible",
     "ReasoningEffort",
     "Transport",
     "TransportFallbackCallback",
