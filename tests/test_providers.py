@@ -1,5 +1,6 @@
 import json
 from inspect import Parameter, signature
+from operator import attrgetter
 from pathlib import Path
 
 import pytest
@@ -197,11 +198,11 @@ def test_exported_names_are_discoverable() -> None:
 
 def test_an_unknown_name_is_an_attribute_error() -> None:
     with pytest.raises(AttributeError, match="ChatSomethingElse"):
-        llmkit.ChatSomethingElse  # type: ignore[attr-defined]
+        attrgetter("ChatSomethingElse")(llmkit)
 
 
 def test_provider_package_reexports_the_public_providers() -> None:
-    import llmkit.providers as providers
+    from llmkit import providers
 
     assert providers.ChatOpenAI is llmkit.ChatOpenAI
     assert providers.ChatCodex is llmkit.ChatCodex
@@ -216,8 +217,7 @@ def test_importing_llmkit_does_not_require_websockets() -> None:
         [
             sys.executable,
             "-c",
-            "import sys; sys.modules['websockets'] = None; "
-            "import llmkit; print(llmkit.ChatCodex.__name__)",
+            "import sys; sys.modules['websockets'] = None; import llmkit; print(llmkit.ChatCodex.__name__)",
         ],
         capture_output=True,
         text=True,
