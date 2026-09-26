@@ -22,7 +22,6 @@ from websockets.exceptions import InvalidStatus
 
 _HTTP_COOLDOWN_SECONDS = 30.0
 _ORIGINATOR = "pydantic-ai"
-_STREAM_ID = "main"
 
 
 class WebSocketUnavailable(OpenAIError):
@@ -360,5 +359,4 @@ def _websocket_request(request: Mapping[str, Any]) -> dict[str, Any]:
     extra_body = request.get("extra_body")
     if isinstance(extra_body, Mapping):
         websocket_request.update(extra_body)
-    websocket_request["stream_id"] = _STREAM_ID
     return websocket_request
