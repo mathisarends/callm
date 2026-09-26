@@ -171,7 +171,7 @@ class PydanticAIModel(ChatModel):
         tool_choice: ToolChoice = "auto",
         output_format: type[T] | None = None,
     ) -> ModelResponse[T] | ModelResponse[str]:
-        parameters = _request_parameters(tools, output_format)
+        parameters = request_parameters(tools, output_format)
         history, settings = self._request_context(
             messages,
             tools=tools,
@@ -194,7 +194,7 @@ class PydanticAIModel(ChatModel):
         tools: Sequence[ModelTool] = (),
         tool_choice: ToolChoice = "auto",
     ) -> AsyncIterator[ModelEvent]:
-        parameters = _request_parameters(tools, None)
+        parameters = request_parameters(tools, None)
         history, settings = self._request_context(
             messages,
             tools=tools,
@@ -233,7 +233,7 @@ class PydanticAIModel(ChatModel):
         tool_choice: ToolChoice,
         output_format: type[BaseModel] | None,
     ) -> tuple[list[ModelMessage], ModelSettings | None]:
-        return _model_messages(messages), self._settings_for(tool_choice)
+        return model_messages(messages), self._settings_for(tool_choice)
 
 
 def _settings(values: dict[str, Any]) -> ModelSettings | None:
@@ -241,10 +241,11 @@ def _settings(values: dict[str, Any]) -> ModelSettings | None:
     return ModelSettings(**present) if present else None  # type: ignore[typeddict-item]
 
 
-def _request_parameters(
+def request_parameters(
     tools: Sequence[ModelTool],
     output_format: type[BaseModel] | None,
 ) -> ModelRequestParameters:
+    """Describe the tools and structured output format for one request."""
     function_tools = [
         ToolDefinition(
             name=tool.name,
@@ -270,7 +271,7 @@ def _request_parameters(
     )
 
 
-def _model_messages(
+def model_messages(
     messages: Sequence[Message],
     *,
     initial_instructions: str | None = None,

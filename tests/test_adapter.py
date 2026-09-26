@@ -53,7 +53,7 @@ from llmify.messages import (
 from llmify.pydantic_ai_adapter import (
     PydanticAIModel,
     _mapped_error,
-    _model_messages,
+    model_messages,
     _usage,
 )
 from llmify.retries import retry_delay
@@ -131,7 +131,7 @@ async def test_usage_carries_cache_counters() -> None:
 
 
 def test_a_system_message_becomes_instructions() -> None:
-    history = _model_messages(
+    history = model_messages(
         [SystemMessage(content="be terse"), UserMessage(content="hi")]
     )
 
@@ -140,7 +140,7 @@ def test_a_system_message_becomes_instructions() -> None:
 
 
 def test_tool_results_answering_one_turn_share_a_request() -> None:
-    history = _model_messages(
+    history = model_messages(
         [
             UserMessage(content="hi"),
             AssistantMessage(
@@ -166,7 +166,7 @@ def test_tool_results_answering_one_turn_share_a_request() -> None:
 
 
 def test_a_failed_tool_result_says_so() -> None:
-    history = _model_messages(
+    history = model_messages(
         [
             ToolResultMessage(
                 tool_call_id="a", tool_name="one", content="boom", is_error=True
@@ -181,7 +181,7 @@ def test_a_failed_tool_result_says_so() -> None:
 
 def test_provider_state_is_replayed_verbatim() -> None:
     original = ModelResponse(parts=[TextPart(content="kept")])
-    history = _model_messages(
+    history = model_messages(
         [AssistantMessage(content="lossy", provider_state=original)]
     )
 
@@ -189,7 +189,7 @@ def test_provider_state_is_replayed_verbatim() -> None:
 
 
 def test_an_assistant_message_without_provider_state_is_rebuilt() -> None:
-    history = _model_messages(
+    history = model_messages(
         [
             AssistantMessage(
                 content="said",
@@ -214,7 +214,7 @@ def test_an_image_url_travels_as_a_url() -> None:
         )
     )
 
-    part = _model_messages([message])[0].parts[0]
+    part = model_messages([message])[0].parts[0]
     assert isinstance(part, UserPromptPart)
     image = part.content[1]
     assert isinstance(image, PydanticImageUrl)
@@ -225,7 +225,7 @@ def test_an_image_url_travels_as_a_url() -> None:
 def test_a_data_uri_travels_as_bytes() -> None:
     message = UserMessage(content=(ImageUrl(url=PNG_PIXEL),))
 
-    part = _model_messages([message])[0].parts[0]
+    part = model_messages([message])[0].parts[0]
     assert isinstance(part, UserPromptPart)
     image = part.content[0]
     assert isinstance(image, BinaryContent)
@@ -234,7 +234,7 @@ def test_a_data_uri_travels_as_bytes() -> None:
 
 
 def test_plain_text_stays_a_plain_string() -> None:
-    part = _model_messages([UserMessage(content="hi")])[0].parts[0]
+    part = model_messages([UserMessage(content="hi")])[0].parts[0]
 
     assert isinstance(part, UserPromptPart)
     assert part.content == "hi"

@@ -15,7 +15,7 @@ from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from llmify.base import ModelTool
 from llmify.messages import AssistantMessage, SystemMessage, UserMessage
 from llmify.providers.codex import ChatCodex, TransportFallbackEvent
-from llmify.providers.codex_transport import (
+from llmify.providers.codex.websocket import (
     CodexResponsesResource,
     WebSocketUnavailable,
 )
@@ -320,9 +320,9 @@ def test_warmup_request_disables_generation_without_stream_id() -> None:
         connection = SimpleNamespace(
             send=AsyncMock(), recv=AsyncMock(return_value=event)
         )
-        resource._ensure_connection = AsyncMock(return_value=connection)
+        resource.ensure_connection = AsyncMock(return_value=connection)
 
-        async with resource.warmup_request():
+        with resource.warmup_request():
             result = await resource.create(
                 model="gpt-5.6-terra", input="", stream=False
             )
@@ -353,7 +353,7 @@ def test_regular_websocket_request_omits_unsupported_stream_id() -> None:
             response=SimpleNamespace(create=AsyncMock()),
             recv=AsyncMock(return_value=event),
         )
-        resource._ensure_connection = AsyncMock(return_value=connection)
+        resource.ensure_connection = AsyncMock(return_value=connection)
 
         assert (
             await resource.create(model="gpt-5.6-terra", input="Question") is response

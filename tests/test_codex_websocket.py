@@ -14,7 +14,7 @@ from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from llmify.messages import UserMessage
 from llmify.errors import ResponseInterruptedError
 from llmify.providers.codex import ChatCodex
-from llmify.providers.codex_transport import (
+from llmify.providers.codex.websocket import (
     CodexResponsesResource,
     WebSocketInterrupted,
     WebSocketUnavailable,
@@ -119,7 +119,7 @@ def test_started_websocket_response_is_never_replayed() -> None:
                 ]
             ),
         )
-        resource._ensure_connection = AsyncMock(return_value=connection)
+        resource.ensure_connection = AsyncMock(return_value=connection)
         stream = await resource.create(
             model="gpt-5.6-terra", input="question", stream=True
         )
@@ -190,7 +190,7 @@ def test_send_failure_allows_http_fallback() -> None:
                 create=AsyncMock(side_effect=ConnectionError("send failed"))
             ),
         )
-        resource._ensure_connection = AsyncMock(return_value=connection)
+        resource.ensure_connection = AsyncMock(return_value=connection)
         stream = await resource.create(
             model="gpt-5.6-terra", input="question", stream=True
         )
@@ -214,7 +214,7 @@ def test_completed_websocket_response_is_returned() -> None:
             response=SimpleNamespace(create=AsyncMock()),
             recv=AsyncMock(return_value=event),
         )
-        resource._ensure_connection = AsyncMock(return_value=connection)
+        resource.ensure_connection = AsyncMock(return_value=connection)
         result = await resource.create(
             model="gpt-5.6-terra", input="question", stream=False
         )

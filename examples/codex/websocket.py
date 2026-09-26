@@ -1,12 +1,12 @@
 import asyncio
 import time
-from typing import Literal
 
 from llmify import (
     ChatCodex,
     CredentialsUnavailableError,
     Message,
     SystemMessage,
+    Transport,
     TransportFallbackEvent,
     UserMessage,
 )
@@ -22,7 +22,7 @@ async def show_fallback(event: TransportFallbackEvent) -> None:
     print(f"  WebSocket fallback during {event.phase}: {event.reason}")
 
 
-async def conversation(transport: Literal["websocket", "http"]) -> None:
+async def conversation(transport: Transport) -> None:
     print(f"--- {transport}")
     messages: list[Message] = [SystemMessage(content="Answer briefly.")]
 
