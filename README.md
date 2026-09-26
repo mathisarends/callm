@@ -14,7 +14,7 @@ here to go wrong.
 
 - One interface across OpenAI, Codex, Azure OpenAI, Cerebras, Anthropic and Google Gemini
 - Type-safe structured output with Pydantic
-- Tool calling, with schemas derived from your functions
+- Tool calling
 - Async streaming, ending in the same response a call returns
 - Images, reasoning traces and cache-aware token usage
 - Automatic retries for transient failures, with per-retry callbacks
@@ -166,30 +166,23 @@ than arriving as something it is not.
 
 ### Tools
 
-`@tool` derives the schema from the function's signature. Anything Pydantic
-understands as a parameter type — nested models, literals, unions, `Annotated`
-descriptions — is understood here:
+A tool is a name, a description and a JSON schema. Running the calls the model
+asks for is up to you:
 
 ```python
-from typing import Annotated
-from pydantic import Field
-from llmify import tool
+from llmify import ModelTool, ToolResultMessage
 
-@tool
-def search_web(
-    query: Annotated[str, Field(description="What to look for")],
-    max_results: int = 10,
-) -> str:
-    """Search the web for information."""
-    return f"results for {query}"
-```
+search_web = ModelTool(
+    name="search_web",
+    description="Search the web for information.",
+    parameters={
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "What to look for"}},
+        "required": ["query"],
+    },
+)
 
-A tool knows how to run the calls it receives, and turns a raised exception into
-a tool result the model can recover from:
-
-```python
 messages = [UserMessage(content="Look up llmify and summarise it.")]
-by_name = {t.name: t for t in (search_web,)}
 
 while True:
     response = await model(messages, tools=[search_web])
@@ -197,12 +190,15 @@ while True:
     if not response.tool_calls:
         break
     for call in response.tool_calls:
-        messages.append(await by_name[call.name].execute(call))
+        query = call.parsed_arguments["query"]
+        messages.append(ToolResultMessage(
+            tool_call_id=call.id,
+            tool_name=call.name,
+            content=f"results for {query}",
+        ))
 ```
 
-`tool_choice` takes `"auto"`, `"required"` or `"none"`. For a schema you already
-have, build a `ModelTool(name=..., description=..., parameters=...)` directly —
-there is no separate type for it.
+`tool_choice` takes `"auto"`, `"required"` or `"none"`.
 
 ### Images
 

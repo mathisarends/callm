@@ -32,7 +32,6 @@ from .ports import (
 )
 from .providers import _MODULE_BY_NAME as _PROVIDER_NAMES
 from .retries import RetryCallback, RetryEvent
-from .tools import FunctionTool, tool
 
 if TYPE_CHECKING:
     # Redundant aliases: these are re-exports, resolved at runtime by __getattr__.
@@ -79,7 +78,6 @@ __all__ = [
     "CodexCliCredentials",
     "ContextLengthExceededError",
     "CredentialsUnavailableError",
-    "FunctionTool",
     "ImageUrl",
     "LLMifyError",
     "Message",
@@ -106,5 +104,4 @@ __all__ = [
     "ToolResultMessage",
     "Usage",
     "UserMessage",
-    "tool",
 ]
