@@ -10,7 +10,7 @@ from pydantic_ai.messages import ModelResponse as PydanticResponse
 from pydantic_ai.messages import TextPart
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 
-from llmify.ports import UserMessage
+from llmify.base import UserMessage
 from llmify.providers.codex import ChatCodex
 from llmify.providers.codex_transport import (
     CodexResponsesResource,

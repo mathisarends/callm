@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
-from .exceptions import (
+from .errors import (
     AuthenticationError,
     ContextLengthExceededError,
     CredentialsUnavailableError,
@@ -10,7 +10,7 @@ from .exceptions import (
     RateLimitError,
     RetryableError,
 )
-from .ports import (
+from .base import (
     AssistantMessage,
     ChatModel,
     ImageUrl,

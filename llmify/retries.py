@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Never
 
-from llmify.exceptions import RateLimitError, RetryableError
+from llmify.errors import RateLimitError, RetryableError
 
 
 @dataclass(frozen=True, slots=True)

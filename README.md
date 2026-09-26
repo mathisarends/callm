@@ -77,7 +77,7 @@ asyncio.run(main())
 
 ## The contract
 
-Everything public lives in `llmify.ports`, and every provider speaks exactly it.
+Everything public lives in `llmify.base`, and every provider speaks exactly it.
 
 ### Messages
 

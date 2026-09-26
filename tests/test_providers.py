@@ -11,7 +11,7 @@ from pydantic_ai.providers.azure import AzureProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 import llmify
-from llmify.exceptions import CredentialsUnavailableError
+from llmify.errors import CredentialsUnavailableError
 from llmify.providers.codex import ChatCodex
 from llmify.providers.openai import ReasoningEffort
 

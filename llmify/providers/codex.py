@@ -11,8 +11,8 @@ from pydantic_ai.providers.openai_codex import (
     OpenAICodexProvider,
 )
 
-from llmify.exceptions import CredentialsUnavailableError
-from llmify.ports import Message, ModelEvent, ModelResponse, ModelTool, ToolChoice
+from llmify.errors import CredentialsUnavailableError
+from llmify.base import Message, ModelEvent, ModelResponse, ModelTool, ToolChoice
 from llmify.providers.codex_transport import (
     CodexResponsesResource,
     WebSocketUnavailable,

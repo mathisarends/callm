@@ -41,7 +41,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
-from llmify.exceptions import (
+from llmify.errors import (
     AuthenticationError,
     ContextLengthExceededError,
     ModelBehaviorError,
@@ -49,7 +49,7 @@ from llmify.exceptions import (
     RateLimitError,
     RetryableError,
 )
-from llmify.ports import (
+from llmify.base import (
     AssistantMessage,
     ChatModel,
     ImageUrl,

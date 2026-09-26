@@ -1,6 +1,6 @@
 import pytest
 
-from llmify.exceptions import RateLimitError, RetryableError
+from llmify.errors import RateLimitError, RetryableError
 from llmify.retries import RetryEvent, retry_delay
 
 
