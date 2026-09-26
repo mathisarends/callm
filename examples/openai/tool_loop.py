@@ -42,7 +42,7 @@ async def main() -> None:
                 return
 
             for call in response.tool_calls:
-                print(f"  → {call.name}({call.arguments})")
+                print(f"  -> {call.name}({call.arguments})")
                 city = call.parsed_arguments["city"]
                 messages.append(
                     ToolResultMessage(

@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 
 from dotenv import load_dotenv
 
@@ -7,6 +8,7 @@ from llmify import (
     ChatModel,
     ChatOpenAI,
     ChatOpenAIResponses,
+    LLMifyError,
     OpenAICompatible,
     UserMessage,
 )
@@ -14,17 +16,21 @@ from llmify import (
 load_dotenv(override=True)
 
 
-def every_provider() -> dict[str, ChatModel]:
+def every_provider() -> dict[str, Callable[[], ChatModel]]:
+    # Factories rather than instances: a provider without credentials raises
+    # CredentialsUnavailableError as soon as it is constructed.
     return {
         # api_key defaults to OPENAI_API_KEY
-        "openai": ChatOpenAI("gpt-5.6"),
+        "openai": lambda: ChatOpenAI("gpt-5.6"),
         # the Responses API: preferred for reasoning models
-        "openai-responses": ChatOpenAIResponses("gpt-5.6", reasoning_effort="low"),
+        "openai-responses": lambda: ChatOpenAIResponses(
+            "gpt-5.6", reasoning_effort="low"
+        ),
         # model is the deployment name; endpoint defaults to AZURE_OPENAI_ENDPOINT
-        "azure": ChatAzureOpenAI("my-deployment", api_version="2024-10-01"),
+        "azure": lambda: ChatAzureOpenAI("my-deployment", api_version="2024-10-01"),
         # anything else that speaks OpenAI's Chat Completions API
-        "local": OpenAICompatible(
-            "llama-3.3-70b", base_url="http://localhost:11434/v1"
+        "local": lambda: OpenAICompatible(
+            "llama-3.3-70b", base_url="http://localhost:11434/v1", max_retries=0
         ),
     }
 
@@ -32,14 +38,14 @@ def every_provider() -> dict[str, ChatModel]:
 async def main() -> None:
     question = [UserMessage(content="Name one city. Just the name.")]
 
-    for name, model in every_provider().items():
-        async with model:
-            try:
+    for name, make in every_provider().items():
+        try:
+            async with make() as model:
                 response = await model(question)
-            except Exception as error:  # noqa: BLE001 - a demo, not a library
-                print(f"{name:<18} skipped: {type(error).__name__}")
-            else:
-                print(f"{name:<18} {response.completion.strip()}")
+        except LLMifyError as error:
+            print(f"{name:<18} skipped: {type(error).__name__}")
+        else:
+            print(f"{name:<18} {response.completion.strip()}")
 
 
 if __name__ == "__main__":

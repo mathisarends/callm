@@ -30,6 +30,8 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
+addopts = "-m 'not live'"
+markers = ["live: calls real provider APIs; run with `pytest -m live`"]
 
 [tool.coverage.run]
 source = ["llmify"]
