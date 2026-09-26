@@ -224,22 +224,29 @@ Provider failures arrive as llmify errors, whichever SDK raised them:
 | `AuthenticationError` | credentials rejected (401, 403) |
 | `CredentialsUnavailableError` | credentials missing or unusable, a new login is needed |
 | `RateLimitError` | 429 — retryable |
-| `RetryableError` | 5xx, 408, transport failures |
+| `RetryableError` | 5xx, 408, 409, 425, transport failures |
 | `OutOfCreditsError` | quota or billing exhausted |
 | `ContextLengthExceededError` | the input did not fit |
 | `ModelBehaviorError` | the answer did not fit the shape it was asked for |
+| `ProviderError` | another nonretryable provider HTTP error |
 
 Retryable failures are retried with exponential backoff, honouring `Retry-After`
 when the provider sends one. A stream is only retried while nothing has been
-emitted yet, so output is never replayed.
+emitted yet, so output is never replayed. `on_retry` must be an async callable;
+it receives the delay in seconds and one-based attempt numbers. The SDK's own
+retries are disabled so the callback sees every retry.
 
 ```python
 async def log_retry(event):
     print(f"attempt {event.failed_attempt}/{event.max_attempts} failed, "
-          f"waiting {event.delay:.1f}s")
+          f"retrying in {event.delay:.1f}s: {event.error.code}")
 
 model = ChatOpenAI("gpt-5.6", max_retries=3, on_retry=log_retry)
 ```
+
+For UI messages, use `event.error.user_message` and `event.delay`. Use
+`event.error.code` to localize the message. Exception strings can include raw
+provider details and belong in private diagnostics rather than UI text.
 
 ## Providers
 

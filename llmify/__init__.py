@@ -7,6 +7,7 @@ from .errors import (
     LLMifyError,
     ModelBehaviorError,
     OutOfCreditsError,
+    ProviderError,
     RateLimitError,
     RetryableError,
 )
@@ -82,6 +83,7 @@ __all__ = [
     "OpenAICodexCredentials",
     "OpenAICompatible",
     "OutOfCreditsError",
+    "ProviderError",
     "RateLimitError",
     "ReasoningEffort",
     "RetryCallback",

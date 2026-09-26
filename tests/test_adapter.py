@@ -1,6 +1,10 @@
 import pytest
 from pydantic import BaseModel
-from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.messages import (
     BinaryContent,
     ModelMessage,
@@ -27,6 +31,7 @@ from llmify.errors import (
     ContextLengthExceededError,
     ModelBehaviorError,
     OutOfCreditsError,
+    ProviderError,
     RateLimitError,
     RetryableError,
 )
@@ -333,6 +338,7 @@ async def test_a_stream_reports_thinking_separately_from_text() -> None:
         (401, "nope", AuthenticationError),
         (403, "nope", AuthenticationError),
         (429, "slow down", RateLimitError),
+        (429, "insufficient_quota", OutOfCreditsError),
         (402, "pay up", OutOfCreditsError),
         (400, "insufficient_quota", OutOfCreditsError),
         (400, "context_length_exceeded", ContextLengthExceededError),
@@ -340,6 +346,8 @@ async def test_a_stream_reports_thinking_separately_from_text() -> None:
         (500, "boom", RetryableError),
         (503, "boom", RetryableError),
         (408, "slow", RetryableError),
+        (409, "conflict", RetryableError),
+        (425, "too early", RetryableError),
     ],
 )
 def test_http_failures_map_onto_the_taxonomy(
@@ -362,10 +370,38 @@ def test_a_rate_limit_carries_the_providers_retry_after() -> None:
     assert retry_delay(mapped, 0) == 12
 
 
-def test_an_unrecognised_failure_is_left_alone() -> None:
+def test_an_unrecognised_http_failure_has_a_safe_ui_message() -> None:
     error = ModelHTTPError(status_code=418, model_name="m", body="teapot")
 
-    assert _mapped_error(error) is error
+    mapped = _mapped_error(error)
+
+    assert isinstance(mapped, ProviderError)
+    assert mapped.status_code == 418
+    assert mapped.code == "model_provider_error"
+    assert "teapot" in str(mapped)
+    assert "teapot" not in mapped.user_message
+    assert not mapped.retryable
+
+
+def test_a_provider_connection_failure_is_retryable() -> None:
+    error = ModelAPIError(model_name="m", message="connection failed")
+
+    mapped = _mapped_error(error)
+    assert isinstance(mapped, RetryableError)
+    assert mapped.retryable
+    assert mapped.code == "model_temporarily_unavailable"
+    assert mapped.status_code is None
+
+
+def test_classified_http_errors_preserve_status_for_the_ui() -> None:
+    error = ModelHTTPError(status_code=401, model_name="m", body="secret detail")
+
+    mapped = _mapped_error(error)
+
+    assert isinstance(mapped, AuthenticationError)
+    assert mapped.status_code == 401
+    assert mapped.code == "model_authentication_failed"
+    assert "secret detail" not in mapped.user_message
 
 
 def test_unexpected_model_behaviour_becomes_a_model_behaviour_error() -> None:
@@ -388,6 +424,78 @@ async def test_a_transient_failure_is_retried() -> None:
     response = await model.call([UserMessage(content="hi")])
 
     assert (attempts, response.completion) == (2, "second time lucky")
+
+
+async def test_a_connection_failure_retries_and_notifies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+    events = []
+
+    async def on_retry(event) -> None:
+        events.append(event)
+
+    async def no_sleep(_delay: float) -> None:
+        pass
+
+    monkeypatch.setattr("llmify.retries.asyncio.sleep", no_sleep)
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ModelAPIError(model_name="m", message="connection failed")
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    model = PydanticAIModel(FunctionModel(respond), max_retries=1, on_retry=on_retry)
+    response = await model.call([UserMessage(content="hi")])
+
+    assert response.completion == "ok"
+    assert attempts == 2
+    assert len(events) == 1
+    assert events[0].failed_attempt == 1
+    assert isinstance(events[0].error, RetryableError)
+
+
+async def test_a_stream_retries_connection_failure_before_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    async def no_sleep(_delay: float) -> None:
+        pass
+
+    monkeypatch.setattr("llmify.retries.asyncio.sleep", no_sleep)
+
+    async def stream(messages: list[ModelMessage], info: AgentInfo):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ModelAPIError(model_name="m", message="connection failed")
+        yield "ok"
+
+    model = PydanticAIModel(FunctionModel(stream_function=stream), max_retries=1)
+    events = [event async for event in model.stream([UserMessage(content="hi")])]
+
+    assert attempts == 2
+    assert events[-1].completion == "ok"
+
+
+async def test_a_stream_does_not_retry_after_output() -> None:
+    attempts = 0
+
+    async def stream(messages: list[ModelMessage], info: AgentInfo):
+        nonlocal attempts
+        attempts += 1
+        yield "partial"
+        raise ModelAPIError(model_name="m", message="connection failed")
+
+    model = PydanticAIModel(FunctionModel(stream_function=stream), max_retries=2)
+
+    with pytest.raises(RetryableError):
+        async for _event in model.stream([UserMessage(content="hi")]):
+            pass
+    assert attempts == 1
 
 
 async def test_a_permanent_failure_is_not_retried() -> None:
@@ -413,6 +521,14 @@ def test_max_retries_is_checked_up_front() -> None:
     with pytest.raises(ValueError):
         PydanticAIModel(
             FunctionModel(lambda m, i: ModelResponse(parts=[])), max_retries=-1
+        )
+
+
+def test_on_retry_must_be_async() -> None:
+    with pytest.raises(TypeError, match="async callable"):
+        PydanticAIModel(
+            FunctionModel(lambda m, i: ModelResponse(parts=[])),
+            on_retry=lambda _event: None,
         )
 
 

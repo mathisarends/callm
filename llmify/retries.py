@@ -1,5 +1,4 @@
 import asyncio
-import inspect
 import random
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
@@ -28,7 +27,7 @@ class RetryEvent:
         return self.max_retries + 1
 
 
-type RetryCallback = Callable[[RetryEvent], Awaitable[None] | None]
+type RetryCallback = Callable[[RetryEvent], Awaitable[None]]
 type ErrorMapper = Callable[[Exception], Exception]
 
 
@@ -55,9 +54,7 @@ async def sleep_before_retry(
     )
 
     if on_retry is not None:
-        result = on_retry(event)
-        if inspect.isawaitable(result):
-            await result
+        await on_retry(event)
 
     await asyncio.sleep(delay)
 

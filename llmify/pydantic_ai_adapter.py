@@ -6,11 +6,16 @@ new provider is a constructor and nothing else.
 """
 
 import base64
+import inspect
 from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
-from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.messages import (
     BinaryContent,
     ModelMessage,
@@ -46,6 +51,7 @@ from llmify.errors import (
     ContextLengthExceededError,
     ModelBehaviorError,
     OutOfCreditsError,
+    ProviderError,
     RateLimitError,
     RetryableError,
 )
@@ -117,10 +123,20 @@ class PydanticAIModel(ChatModel):
             raise TypeError("'max_retries' must be an integer.")
         if max_retries < 0:
             raise ValueError("'max_retries' must be greater than or equal to 0.")
+        if on_retry is not None and not (
+            inspect.iscoroutinefunction(on_retry)
+            or inspect.iscoroutinefunction(getattr(on_retry, "__call__", None))
+        ):
+            raise TypeError("'on_retry' must be an async callable.")
 
         self._model = model
         self._max_retries = max_retries
         self._on_retry = on_retry
+        # The outer retry loop owns the budget and emits every on_retry event.
+        # Otherwise an SDK client can silently retry several times per attempt.
+        client = getattr(model, "client", None)
+        if client is not None and hasattr(client, "max_retries"):
+            client.max_retries = 0
         stop_values = stop_sequences if stop_sequences is not None else stop
         self._settings = _settings(
             {
@@ -413,12 +429,14 @@ _OUT_OF_CREDITS_MARKERS = (
 def _mapped_error(error: Exception) -> Exception:
     """Translate a provider failure into llmify's taxonomy.
 
-    pydantic-ai already normalises every SDK's failure into `ModelHTTPError`, so
-    there is one status code to read instead of seven exception hierarchies.
+    pydantic-ai normalises HTTP and connection failures into `ModelHTTPError`
+    and `ModelAPIError` respectively for the providers used here.
     """
     match error:
         case ModelHTTPError():
             return _from_status(error)
+        case ModelAPIError():
+            return RetryableError(str(error))
         case UnexpectedModelBehavior():
             return ModelBehaviorError(str(error))
     return error
@@ -426,15 +444,18 @@ def _mapped_error(error: Exception) -> Exception:
 
 def _from_status(error: ModelHTTPError) -> Exception:
     status, body = error.status_code, str(error.body).lower()
+    out_of_credits = any(marker in body for marker in _OUT_OF_CREDITS_MARKERS)
 
     if status in (401, 403):
-        return AuthenticationError(str(error))
+        return AuthenticationError(str(error), status_code=status)
+    if status == 402 or (status == 429 and out_of_credits):
+        return OutOfCreditsError(str(error), status_code=status)
     if status == 429:
         return RateLimitError(str(error), retry_after=error.retry_after)
-    if status == 402 or any(marker in body for marker in _OUT_OF_CREDITS_MARKERS):
-        return OutOfCreditsError(str(error))
-    if any(marker in body for marker in _CONTEXT_LENGTH_MARKERS):
-        return ContextLengthExceededError(str(error))
-    if status >= 500 or status == 408:
+    if status >= 500 or status in (408, 409, 425):
         return RetryableError(str(error), status_code=status)
-    return error
+    if out_of_credits:
+        return OutOfCreditsError(str(error), status_code=status)
+    if any(marker in body for marker in _CONTEXT_LENGTH_MARKERS):
+        return ContextLengthExceededError(str(error), status_code=status)
+    return ProviderError(str(error), status_code=status)

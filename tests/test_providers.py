@@ -40,12 +40,14 @@ def test_openai_uses_the_chat_completions_api() -> None:
     assert model.model == "gpt-5.6"
     assert isinstance(model._model, OpenAIChatModel)
     assert isinstance(model._model.provider, OpenAIProvider)
+    assert model._model.client.max_retries == 0
 
 
 def test_openai_responses_uses_the_responses_api() -> None:
     model = llmify.ChatOpenAIResponses("gpt-5.6", api_key="sk-test")
 
     assert isinstance(model._model, OpenAIResponsesModel)
+    assert model._model.client.max_retries == 0
 
 
 def test_an_openai_compatible_endpoint_keeps_its_base_url() -> None:
@@ -54,6 +56,7 @@ def test_an_openai_compatible_endpoint_keeps_its_base_url() -> None:
     )
 
     assert model._model.base_url.startswith("https://example.test/v1")
+    assert model._model.client.max_retries == 0
 
 
 def test_azure_reaches_the_azure_provider() -> None:
@@ -66,6 +69,7 @@ def test_azure_reaches_the_azure_provider() -> None:
 
     assert isinstance(model._model, OpenAIChatModel)
     assert isinstance(model._model.provider, AzureProvider)
+    assert model._model.client.max_retries == 0
 
 
 def test_azure_responses_reaches_the_azure_provider() -> None:
@@ -78,6 +82,7 @@ def test_azure_responses_reaches_the_azure_provider() -> None:
 
     assert isinstance(model._model, OpenAIResponsesModel)
     assert isinstance(model._model.provider, AzureProvider)
+    assert model._model.client.max_retries == 0
 
 
 # --- named options become model settings ------------------------------------
@@ -181,6 +186,7 @@ def test_codex_reads_the_cli_login(
 
     assert isinstance(model._model, OpenAICodexModel)
     assert model._settings["openai_reasoning_effort"] == "high"
+    assert model._model.client.max_retries == 0
 
 
 def test_codex_says_so_when_there_is_no_login(
