@@ -2,9 +2,6 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic_ai.models.anthropic import AnthropicModel
-from pydantic_ai.models.cerebras import CerebrasModel
-from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.models.openai_codex import OpenAICodexModel
 from pydantic_ai.providers.azure import AzureProvider
@@ -80,19 +77,6 @@ def test_azure_responses_reaches_the_azure_provider() -> None:
 
     assert isinstance(model._model, OpenAIResponsesModel)
     assert isinstance(model._model.provider, AzureProvider)
-
-
-def test_cerebras_anthropic_and_google_build_their_own_models() -> None:
-    assert isinstance(
-        llmify.ChatCerebras("gpt-oss-120b", api_key="csk")._model, CerebrasModel
-    )
-    assert isinstance(
-        llmify.ChatAnthropic("claude-sonnet-4-5", api_key="sk-ant")._model,
-        AnthropicModel,
-    )
-    assert isinstance(
-        llmify.ChatGoogle("gemini-3-pro", api_key="k")._model, GoogleModel
-    )
 
 
 # --- named options become model settings ------------------------------------
@@ -182,7 +166,7 @@ def test_importing_llmify_does_not_import_every_sdk() -> None:
             sys.executable,
             "-c",
             "import llmify, sys; print(int(any(m in sys.modules for m in "
-            "('anthropic', 'google.genai'))))",
+            "('openai',))))",
         ],
         capture_output=True,
         text=True,

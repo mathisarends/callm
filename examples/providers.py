@@ -9,10 +9,7 @@ import asyncio
 from dotenv import load_dotenv
 
 from llmify import (
-    ChatAnthropic,
     ChatAzureOpenAI,
-    ChatCerebras,
-    ChatGoogle,
     ChatModel,
     ChatOpenAI,
     ChatOpenAIResponses,
@@ -29,12 +26,6 @@ def every_provider() -> dict[str, ChatModel]:
         "openai": ChatOpenAI("gpt-5.6"),
         # the Responses API: preferred for reasoning models
         "openai-responses": ChatOpenAIResponses("gpt-5.6", reasoning_effort="low"),
-        # api_key defaults to ANTHROPIC_API_KEY
-        "anthropic": ChatAnthropic("claude-sonnet-4-5"),
-        # api_key defaults to GOOGLE_API_KEY, then GEMINI_API_KEY
-        "google": ChatGoogle("gemini-3-pro"),
-        # api_key defaults to CEREBRAS_API_KEY
-        "cerebras": ChatCerebras("gpt-oss-120b"),
         # model is the deployment name; endpoint defaults to AZURE_OPENAI_ENDPOINT
         "azure": ChatAzureOpenAI("my-deployment", api_version="2024-10-01"),
         # anything else that speaks OpenAI's Chat Completions API

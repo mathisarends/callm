@@ -35,12 +35,9 @@ from .retries import RetryCallback, RetryEvent
 
 if TYPE_CHECKING:
     # Redundant aliases: these are re-exports, resolved at runtime by __getattr__.
-    from .providers import ChatAnthropic as ChatAnthropic
     from .providers import ChatAzureOpenAI as ChatAzureOpenAI
     from .providers import ChatAzureOpenAIResponses as ChatAzureOpenAIResponses
-    from .providers import ChatCerebras as ChatCerebras
     from .providers import ChatCodex as ChatCodex
-    from .providers import ChatGoogle as ChatGoogle
     from .providers import ChatOpenAI as ChatOpenAI
     from .providers import ChatOpenAIResponses as ChatOpenAIResponses
     from .providers import OpenAICodexCredentials as OpenAICodexCredentials
@@ -65,12 +62,9 @@ def __dir__() -> list[str]:
 __all__ = [
     "AssistantMessage",
     "AuthenticationError",
-    "ChatAnthropic",
     "ChatAzureOpenAI",
     "ChatAzureOpenAIResponses",
-    "ChatCerebras",
     "ChatCodex",
-    "ChatGoogle",
     "ChatModel",
     "ChatOpenAI",
     "ChatOpenAIResponses",

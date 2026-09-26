@@ -12,7 +12,7 @@ here to go wrong.
 
 **Features:**
 
-- One interface across OpenAI, Codex, Azure OpenAI, Cerebras, Anthropic and Google Gemini
+- One interface across OpenAI, Codex and Azure OpenAI
 - Type-safe structured output with Pydantic
 - Tool calling
 - Async streaming, ending in the same response a call returns
@@ -47,14 +47,10 @@ Install only the provider you need:
 
 ```bash
 pip install py-llmify[openai]      # OpenAI, Azure OpenAI and Codex
-pip install py-llmify[cerebras]    # Cerebras
-pip install py-llmify[anthropic]   # Anthropic (Claude)
-pip install py-llmify[google]      # Google Gemini
-pip install py-llmify[all]         # all of them
 ```
 
-Extras combine, for example `py-llmify[openai,google]`. Importing `llmify` never
-imports a provider SDK, so an extra you did not install costs you nothing.
+Importing `llmify` never imports a provider SDK, so an extra you did not install
+costs you nothing.
 
 ## Quick start
 
@@ -254,9 +250,6 @@ environment variable for credentials.
 from llmify import (
     ChatOpenAI,            # OPENAI_API_KEY
     ChatOpenAIResponses,   # OPENAI_API_KEY — the Responses API
-    ChatAnthropic,         # ANTHROPIC_API_KEY
-    ChatGoogle,            # GOOGLE_API_KEY, then GEMINI_API_KEY
-    ChatCerebras,          # CEREBRAS_API_KEY
     ChatAzureOpenAI,       # AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
     ChatAzureOpenAIResponses,
     ChatCodex,             # a ChatGPT subscription
