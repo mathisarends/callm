@@ -129,10 +129,7 @@ class PydanticAIModel(ChatModel):
             raise TypeError("'max_retries' must be an integer.")
         if max_retries < 0:
             raise ValueError("'max_retries' must be greater than or equal to 0.")
-        if on_retry is not None and not (
-            inspect.iscoroutinefunction(on_retry)
-            or inspect.iscoroutinefunction(getattr(on_retry, "__call__", None))
-        ):
+        if on_retry is not None and not is_async_callable(on_retry):
             raise TypeError("'on_retry' must be an async callable.")
 
         self._model = model
@@ -287,6 +284,16 @@ class PydanticAIModel(ChatModel):
 def _settings(values: dict[str, Any]) -> ModelSettings | None:
     present = {key: value for key, value in values.items() if value is not None}
     return ModelSettings(**present) if present else None  # type: ignore[typeddict-item]
+
+
+def is_async_callable(value: object) -> bool:
+    """Whether calling ``value`` returns a coroutine, as for an ``async def``.
+
+    Callable objects count when their ``__call__`` is itself ``async``.
+    """
+    return inspect.iscoroutinefunction(value) or (
+        callable(value) and inspect.iscoroutinefunction(value.__call__)
+    )
 
 
 @contextmanager

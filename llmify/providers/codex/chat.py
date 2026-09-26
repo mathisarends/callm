@@ -1,4 +1,3 @@
-import inspect
 from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -33,6 +32,7 @@ from llmify.providers.openai import ReasoningEffort, openai_settings
 from llmify.pydantic_ai_adapter import (
     PydanticAIModel,
     credentials_required,
+    is_async_callable,
     model_messages,
 )
 from llmify.retries import RetryCallback
@@ -110,7 +110,7 @@ class ChatCodex(PydanticAIModel):
     ) -> None:
         if transport not in get_args(Transport.__value__):
             raise ValueError("'transport' must be 'websocket' or 'http'.")
-        if on_transport_fallback is not None and not _is_async_callable(
+        if on_transport_fallback is not None and not is_async_callable(
             on_transport_fallback
         ):
             raise TypeError("'on_transport_fallback' must be an async callable.")
@@ -333,12 +333,6 @@ class ChatCodex(PydanticAIModel):
             await self._on_transport_fallback(
                 TransportFallbackEvent(phase=phase, reason=str(error))
             )
-
-
-def _is_async_callable(value: object) -> bool:
-    return inspect.iscoroutinefunction(value) or inspect.iscoroutinefunction(
-        getattr(value, "__call__", None)
-    )
 
 
 def _with_session_headers(
