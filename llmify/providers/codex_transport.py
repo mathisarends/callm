@@ -89,6 +89,10 @@ class CodexResponsesResource(AsyncResponses):
             return None
         return self._connection_generation
 
+    @property
+    def http_only(self) -> bool:
+        return self._http_only.get()
+
     async def _complete_response(self, stream: "_WebSocketResponseStream") -> Any:
         async with stream:
             async for event in stream:

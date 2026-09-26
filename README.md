@@ -289,6 +289,29 @@ WebSocket connection across turns; this needs the `websocket` extra. If opening
 that connection or starting a response fails, it retries the request over HTTP. A connection lost after a
 response starts is reported without replaying the request.
 
+For a conversation where the next user message has not arrived yet, `prepare()`
+can send the existing context over the WebSocket without generating an answer.
+The next matching turn reuses that prepared context:
+
+```python
+from llmify import ChatCodex, Message, SystemMessage, UserMessage
+
+async with ChatCodex("gpt-5.6-terra", transport="websocket") as model:
+    history: list[Message] = [SystemMessage(content="Answer briefly.")]
+    await model.prepare(history)
+    history.append(UserMessage(content="Name one European capital."))
+    answer = await model.call(history)
+```
+
+Pass the same `tools`, `tool_choice`, and `output_format` to `prepare()` as to
+the next call when using them. If the history or connection changes, the next
+request sends the full history. With `transport="http"`, `prepare()` is a no-op.
+See [the WebSocket example](examples/codex/websocket.py) for multiple turns.
+Pass an async `on_transport_fallback` callback to receive a
+`TransportFallbackEvent` with `phase` (`"prepare"`, `"call"`, or `"stream"`)
+and `reason`. A failed preparation reports its error; `call()` and `stream()`
+report when they actually switch to HTTP. The example prints these events.
+
 This reads `~/.codex/auth.json` (honouring `CODEX_HOME`) but never writes it,
 so refreshed tokens last only as long as the process. To keep them, pass a
 `credential_source` — any `OpenAICodexCredentialSource`, as described in

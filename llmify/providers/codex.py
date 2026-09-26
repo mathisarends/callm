@@ -1,16 +1,20 @@
-from collections.abc import AsyncIterator, Sequence
+import inspect
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel
 
 from pydantic_ai.exceptions import UserError
+from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.openai_codex import OpenAICodexModel
 from pydantic_ai.providers.openai_codex import (
     OpenAICodexCredentials,
     OpenAICodexCredentialSource,
     OpenAICodexProvider,
 )
-from pydantic_ai.settings import ServiceTier, ThinkingLevel
+from pydantic_ai.settings import ModelSettings, ServiceTier, ThinkingLevel
 
 from llmify.errors import CredentialsUnavailableError, ResponseInterruptedError
 from llmify.base import (
@@ -19,7 +23,7 @@ from llmify.base import (
     ModelTool,
     ToolChoice,
 )
-from llmify.messages import Message
+from llmify.messages import Message, SystemMessage
 from llmify.providers.codex_transport import (
     CodexResponsesResource,
     WebSocketInterrupted,
@@ -27,8 +31,31 @@ from llmify.providers.codex_transport import (
     install_codex_responses_resource,
 )
 from llmify.providers.openai import ReasoningEffort, openai_settings
-from llmify.pydantic_ai_adapter import PydanticAIModel
+from llmify.pydantic_ai_adapter import (
+    PydanticAIModel,
+    _model_messages,
+    _request_parameters,
+)
 from llmify.retries import RetryCallback
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedRequest:
+    messages: tuple[Message, ...]
+    tools: tuple[ModelTool, ...]
+    tool_choice: ToolChoice
+    output_format: type[BaseModel] | None
+    response_id: str
+    connection_generation: int
+
+
+@dataclass(frozen=True, slots=True)
+class TransportFallbackEvent:
+    phase: Literal["prepare", "call", "stream"]
+    reason: str
+
+
+type TransportFallbackCallback = Callable[[TransportFallbackEvent], Awaitable[None]]
 
 
 class ChatCodex(PydanticAIModel):
@@ -69,8 +96,16 @@ class ChatCodex(PydanticAIModel):
         extra_body: object | None = None,
         max_retries: int = 2,
         on_retry: RetryCallback | None = None,
+        on_transport_fallback: TransportFallbackCallback | None = None,
         **settings: Any,
     ) -> None:
+        if on_transport_fallback is not None and not (
+            inspect.iscoroutinefunction(on_transport_fallback)
+            or inspect.iscoroutinefunction(
+                getattr(on_transport_fallback, "__call__", None)
+            )
+        ):
+            raise TypeError("'on_transport_fallback' must be an async callable.")
         if transport not in ("websocket", "http"):
             raise ValueError("'transport' must be 'websocket' or 'http'.")
         if transport == "websocket":
@@ -89,8 +124,18 @@ class ChatCodex(PydanticAIModel):
             raise CredentialsUnavailableError(str(error)) from error
 
         self._responses_resource: CodexResponsesResource | None = None
+        self._prepared_request: _PreparedRequest | None = None
+        self._on_transport_fallback = on_transport_fallback
         if transport == "websocket":
             self._responses_resource = install_codex_responses_resource(provider)
+            session_id = str(uuid4())
+            headers = dict(extra_headers or {})
+            supplied_headers = {name.lower() for name in headers}
+            for name in ("session-id", "thread-id", "x-client-request-id"):
+                if name not in supplied_headers:
+                    headers[name] = session_id
+            extra_headers = headers
+            settings.setdefault("openai_prompt_cache_key", session_id)
         super().__init__(
             OpenAICodexModel(model, provider=provider),
             max_tokens=max_tokens,
@@ -117,6 +162,101 @@ class ChatCodex(PydanticAIModel):
             ),
         )
 
+    async def prepare(
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool] = (),
+        tool_choice: ToolChoice = "auto",
+        output_format: type[BaseModel] | None = None,
+    ) -> None:
+        """Prepare a WebSocket conversation prefix for the next matching turn."""
+        self._prepared_request = None
+        resource = self._responses_resource
+        if resource is None:
+            return
+
+        history = _model_messages(messages, ensure_request=True)
+        settings = dict(self._settings_for(tool_choice) or {})
+        settings.pop("openai_previous_response_id", None)
+        try:
+            async with resource.warmup_request():
+                response = await self._model.request(
+                    history,
+                    ModelSettings(**settings),  # type: ignore[typeddict-item]
+                    _request_parameters(tools, output_format),
+                )
+        except (WebSocketUnavailable, WebSocketInterrupted) as error:
+            await self._report_transport_fallback("prepare", error)
+            return
+
+        response_id = response.provider_response_id
+        generation = resource.connection_generation
+        if response_id is not None and generation is not None:
+            self._prepared_request = _PreparedRequest(
+                messages=tuple(messages),
+                tools=tuple(tools),
+                tool_choice=tool_choice,
+                output_format=output_format,
+                response_id=response_id,
+                connection_generation=generation,
+            )
+
+    def _request_context(
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool],
+        tool_choice: ToolChoice,
+        output_format: type[BaseModel] | None,
+    ) -> tuple[list[ModelMessage], ModelSettings | None]:
+        prepared = self._prepared_request
+        self._prepared_request = None
+        resource = self._responses_resource
+        if (
+            prepared is None
+            or resource is None
+            or resource.http_only
+            or resource.connection_generation != prepared.connection_generation
+            or len(messages) <= len(prepared.messages)
+            or tuple(messages[: len(prepared.messages)]) != prepared.messages
+            or tuple(tools) != prepared.tools
+            or tool_choice != prepared.tool_choice
+            or output_format is not prepared.output_format
+        ):
+            return super()._request_context(
+                messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                output_format=output_format,
+            )
+
+        instructions = next(
+            (
+                message.content
+                for message in reversed(prepared.messages)
+                if isinstance(message, SystemMessage)
+            ),
+            None,
+        )
+        history = _model_messages(
+            messages[len(prepared.messages) :],
+            initial_instructions=instructions,
+        )
+        settings = dict(self._settings_for(tool_choice) or {})
+        settings["openai_previous_response_id"] = prepared.response_id
+        return history, ModelSettings(**settings)  # type: ignore[typeddict-item]
+
+    async def _report_transport_fallback(
+        self,
+        phase: Literal["prepare", "call", "stream"],
+        error: Exception,
+    ) -> None:
+        if self._on_transport_fallback is not None:
+            await self._on_transport_fallback(
+                TransportFallbackEvent(phase=phase, reason=str(error))
+            )
+
     async def call[T: BaseModel](
         self,
         messages: Sequence[Message],
@@ -140,7 +280,8 @@ class ChatCodex(PydanticAIModel):
                 tool_choice=tool_choice,
                 output_format=output_format,
             )
-        except WebSocketUnavailable:
+        except WebSocketUnavailable as error:
+            await self._report_transport_fallback("call", error)
             async with resource.use_http():
                 return await super().call(
                     messages,
@@ -172,9 +313,10 @@ class ChatCodex(PydanticAIModel):
             ):
                 emitted = True
                 yield event
-        except WebSocketUnavailable:
+        except WebSocketUnavailable as error:
             if emitted:
                 raise
+            await self._report_transport_fallback("stream", error)
             async with resource.use_http():
                 async for event in super().stream(
                     messages, tools=tools, tool_choice=tool_choice

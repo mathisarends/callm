@@ -172,8 +172,12 @@ class PydanticAIModel(ChatModel):
         output_format: type[T] | None = None,
     ) -> ModelResponse[T] | ModelResponse[str]:
         parameters = _request_parameters(tools, output_format)
-        settings = self._settings_for(tool_choice)
-        history = _model_messages(messages)
+        history, settings = self._request_context(
+            messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            output_format=output_format,
+        )
 
         response = await retry_call(
             lambda: self._model.request(history, settings, parameters),
@@ -191,8 +195,12 @@ class PydanticAIModel(ChatModel):
         tool_choice: ToolChoice = "auto",
     ) -> AsyncIterator[ModelEvent]:
         parameters = _request_parameters(tools, None)
-        settings = self._settings_for(tool_choice)
-        history = _model_messages(messages)
+        history, settings = self._request_context(
+            messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            output_format=None,
+        )
 
         async def attempt() -> AsyncIterator[ModelEvent]:
             async with self._model.request_stream(
@@ -216,6 +224,16 @@ class PydanticAIModel(ChatModel):
 
     def _settings_for(self, tool_choice: ToolChoice) -> ModelSettings | None:
         return _settings({**(self._settings or {}), "tool_choice": tool_choice})
+
+    def _request_context(
+        self,
+        messages: Sequence[Message],
+        *,
+        tools: Sequence[ModelTool],
+        tool_choice: ToolChoice,
+        output_format: type[BaseModel] | None,
+    ) -> tuple[list[ModelMessage], ModelSettings | None]:
+        return _model_messages(messages), self._settings_for(tool_choice)
 
 
 def _settings(values: dict[str, Any]) -> ModelSettings | None:
@@ -252,14 +270,19 @@ def _request_parameters(
     )
 
 
-def _model_messages(messages: Sequence[Message]) -> list[ModelMessage]:
+def _model_messages(
+    messages: Sequence[Message],
+    *,
+    initial_instructions: str | None = None,
+    ensure_request: bool = False,
+) -> list[ModelMessage]:
     """Fold llmify's flat message list into pydantic-ai's request/response pairs.
 
     Consecutive user and tool-result messages join one request rather than each
     becoming their own: several tool results answering one turn belong together,
     and providers that require strictly alternating roles reject them otherwise.
     """
-    instructions: str | None = None
+    instructions = initial_instructions
     history: list[ModelMessage] = []
     pending: list[ModelRequestPart] = []
 
@@ -291,6 +314,8 @@ def _model_messages(messages: Sequence[Message]) -> list[ModelMessage]:
                 history.append(PydanticModelResponse(parts=_assistant_parts(message)))
 
     flush()
+    if ensure_request:
+        history.append(ModelRequest(parts=[], instructions=instructions))
     return history
 
 

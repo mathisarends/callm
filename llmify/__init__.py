@@ -41,6 +41,8 @@ from .providers import (
     OpenAICodexCredentials,
     OpenAICompatible,
     ReasoningEffort,
+    TransportFallbackCallback,
+    TransportFallbackEvent,
 )
 from .retries import RetryCallback, RetryEvent
 
@@ -82,6 +84,8 @@ __all__ = [
     "ToolCallEvent",
     "ToolChoice",
     "ToolResultMessage",
+    "TransportFallbackCallback",
+    "TransportFallbackEvent",
     "Usage",
     "UserMessage",
 ]

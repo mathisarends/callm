@@ -2,7 +2,14 @@ import asyncio
 import time
 from typing import Literal
 
-from llmify import ChatCodex, CredentialsUnavailableError, Message, UserMessage
+from llmify import (
+    ChatCodex,
+    CredentialsUnavailableError,
+    Message,
+    SystemMessage,
+    TransportFallbackEvent,
+    UserMessage,
+)
 
 QUESTIONS = [
     "Name one European capital. Just the name.",
@@ -11,14 +18,25 @@ QUESTIONS = [
 ]
 
 
+async def show_fallback(event: TransportFallbackEvent) -> None:
+    print(f"  WebSocket fallback during {event.phase}: {event.reason}")
+
+
 async def conversation(transport: Literal["websocket", "http"]) -> None:
     print(f"--- {transport}")
-    messages: list[Message] = []
+    messages: list[Message] = [SystemMessage(content="Answer briefly.")]
 
     # One model for the whole conversation: over "websocket" the first turn
     # opens the connection and every later turn reuses it.
-    async with ChatCodex("gpt-5.6-terra", transport=transport) as model:
-        for question in QUESTIONS:
+    async with ChatCodex(
+        "gpt-5.6-terra",
+        transport=transport,
+        on_transport_fallback=show_fallback,
+    ) as model:
+        if transport == "websocket":
+            await model.prepare(messages)
+
+        for index, question in enumerate(QUESTIONS):
             messages.append(UserMessage(content=question))
             started = time.perf_counter()
 
@@ -27,6 +45,10 @@ async def conversation(transport: Literal["websocket", "http"]) -> None:
 
             elapsed = time.perf_counter() - started
             print(f"{elapsed:5.2f}s  {response.completion.strip()}")
+
+            # Prepare the conversation prefix while waiting for the next turn.
+            if transport == "websocket" and index + 1 < len(QUESTIONS):
+                await model.prepare(messages)
 
 
 async def main() -> None:
