@@ -46,4 +46,4 @@ exclude_lines = [
 
 [tool.setuptools.packages.find]
 include = ["llmify*"]
-exclude = ["tests*", "examples*", "plans*"]
+exclude = ["tests*", "examples*"]
