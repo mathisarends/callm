@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-from llmify import (
+from callm import (
     ChatCodex,
     ChatModel,
     ChatOpenAI,
@@ -22,7 +22,7 @@ from llmify import (
 
 load_dotenv(override=True)
 
-OPENAI_MODEL = os.getenv("LLMIFY_OPENAI_MODEL", "gpt-5.6")
+OPENAI_MODEL = os.getenv("CALLM_OPENAI_MODEL", "gpt-5.6")
 CODEX_MODEL = os.getenv("CODEX_MODEL", "gpt-5.6-terra")
 
 type Factory = Callable[[], ChatModel]

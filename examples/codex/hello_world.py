@@ -1,6 +1,6 @@
 import asyncio
 
-from llmify import ChatCodex, CredentialsUnavailableError, UserMessage
+from callm import ChatCodex, CredentialsUnavailableError, UserMessage
 
 
 async def main() -> None:

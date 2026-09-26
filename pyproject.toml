@@ -3,8 +3,8 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "py-llmify"
-version = "0.12.0"
+name = "callm"
+version = "0.1.0"
 description = "A minimal, type-safe Python library for LLM chat completions with OpenAI, Azure OpenAI and Codex"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -34,7 +34,7 @@ addopts = "-m 'not live'"
 markers = ["live: calls real provider APIs; run with `pytest -m live`"]
 
 [tool.coverage.run]
-source = ["llmify"]
+source = ["callm"]
 branch = true
 
 [tool.coverage.report]
@@ -48,5 +48,5 @@ exclude_lines = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["llmify*"]
+include = ["callm*"]
 exclude = ["tests*", "examples*"]
