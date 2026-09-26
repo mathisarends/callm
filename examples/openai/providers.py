@@ -9,7 +9,6 @@ from llmify import (
     ChatOpenAI,
     ChatOpenAIResponses,
     LLMifyError,
-    OpenAICompatible,
     UserMessage,
 )
 
@@ -28,10 +27,6 @@ def every_provider() -> dict[str, Callable[[], ChatModel]]:
         ),
         # model is the deployment name; endpoint defaults to AZURE_OPENAI_ENDPOINT
         "azure": lambda: ChatAzureOpenAI("my-deployment", api_version="2024-10-01"),
-        # anything else that speaks OpenAI's Chat Completions API
-        "local": lambda: OpenAICompatible(
-            "llama-3.3-70b", base_url="http://localhost:11434/v1", max_retries=0
-        ),
     }
 
 

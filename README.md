@@ -1,11 +1,9 @@
-# llmify
-
-![llmify banner](static/banner.png)
+# 🪄 llmify
 
 A small, type-safe Python interface to the chat models, built on
 [pydantic-ai](https://github.com/pydantic/pydantic-ai).
 
-llmify is the contract, not the transport. Seven providers reach you through one
+llmify is the contract, not the transport. Five providers reach you through one
 `ChatModel`: called for a turn, streamed for incremental results, and the same either way.
 The wire protocols underneath are pydantic-ai's, which is why there is so little
 here to go wrong.
@@ -258,12 +256,10 @@ from llmify import (
     ChatAzureOpenAI,       # AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT
     ChatAzureOpenAIResponses,
     ChatCodex,             # a ChatGPT subscription
-    OpenAICompatible,      # anything else speaking OpenAI's API
 )
 
 model = ChatOpenAI("gpt-6-sol", api_key="sk-...", base_url="https://...")
 model = ChatAzureOpenAI("my-deployment", api_version="2024-10-01")
-model = OpenAICompatible("llama-3.3-70b", base_url="http://localhost:11434/v1")
 ```
 
 **Reasoning models.** `ChatOpenAIResponses` (and `ChatCodex`, and

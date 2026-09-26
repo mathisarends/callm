@@ -50,17 +50,6 @@ def test_openai_responses_uses_the_responses_api() -> None:
     assert model._model.client.max_retries == 0
 
 
-def test_an_openai_compatible_endpoint_keeps_its_base_url() -> None:
-    model = llmify.OpenAICompatible(
-        "local-model", base_url="https://example.test/v1", api_key="k"
-    )
-
-    assert model._model.base_url is not None
-    assert model._model.base_url.startswith("https://example.test/v1")
-    assert isinstance(model._model, (OpenAIChatModel, OpenAIResponsesModel))
-    assert model._model.client.max_retries == 0
-
-
 def test_azure_reaches_the_azure_provider() -> None:
     model = llmify.ChatAzureOpenAI(
         "my-deployment",
@@ -95,7 +84,6 @@ def test_azure_responses_reaches_the_azure_provider() -> None:
     [
         llmify.ChatOpenAI,
         llmify.ChatOpenAIResponses,
-        llmify.OpenAICompatible,
         llmify.ChatAzureOpenAI,
         llmify.ChatAzureOpenAIResponses,
         ChatCodex,
