@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from llmify import base
+from llmify import base, messages
 
 
 class Answer(BaseModel):
@@ -31,18 +31,18 @@ class Recorder(base.ChatModel):
 
 
 def test_messages_are_frozen() -> None:
-    message = base.UserMessage(content="hi")
+    message = messages.UserMessage(content="hi")
 
     with pytest.raises(ValidationError):
         message.content = "there"  # type: ignore[misc]
 
 
 def test_messages_discriminate_on_type() -> None:
-    adapter = TypeAdapter(base.Message)
+    adapter = TypeAdapter(messages.Message)
 
     assert isinstance(
         adapter.validate_python({"type": "system", "content": "be terse"}),
-        base.SystemMessage,
+        messages.SystemMessage,
     )
     assert isinstance(
         adapter.validate_python(
@@ -53,7 +53,7 @@ def test_messages_discriminate_on_type() -> None:
                 "content": "1",
             }
         ),
-        base.ToolResultMessage,
+        messages.ToolResultMessage,
     )
 
 
@@ -70,10 +70,10 @@ def test_events_discriminate_on_type() -> None:
 
 
 def test_user_text_reads_through_content_parts() -> None:
-    message = base.UserMessage(
+    message = messages.UserMessage(
         content=(
             "look at",
-            base.ImageUrl(url="https://example.test/x.png"),
+            messages.ImageUrl(url="https://example.test/x.png"),
             "and this",
         )
     )
@@ -82,7 +82,7 @@ def test_user_text_reads_through_content_parts() -> None:
 
 
 def test_tool_call_arguments_default_to_an_empty_object() -> None:
-    assert base.ToolCall(id="a", name="t").parsed_arguments == {}
+    assert messages.ToolCall(id="a", name="t").parsed_arguments == {}
 
 
 def test_total_tokens_counts_input_and_output() -> None:
@@ -95,7 +95,7 @@ def test_a_text_turn_becomes_its_history_entry() -> None:
     response = base.ModelResponse(
         completion="said",
         thinking="thought",
-        tool_calls=(base.ToolCall(id="a", name="t"),),
+        tool_calls=(messages.ToolCall(id="a", name="t"),),
         provider_state="opaque",
     )
 
@@ -127,7 +127,7 @@ def test_provider_state_stays_out_of_the_repr() -> None:
 async def test_calling_the_model_delegates_to_call() -> None:
     model = Recorder()
 
-    response = await model([base.UserMessage(content="hi")], tool_choice="required")
+    response = await model([messages.UserMessage(content="hi")], tool_choice="required")
 
     assert response.completion == "ok"
     assert model.calls == [{"tool_choice": "required", "output_format": None}]

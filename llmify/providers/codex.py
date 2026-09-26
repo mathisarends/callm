@@ -13,7 +13,13 @@ from pydantic_ai.providers.openai_codex import (
 from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
 from llmify.errors import CredentialsUnavailableError, ResponseInterruptedError
-from llmify.base import Message, ModelEvent, ModelResponse, ModelTool, ToolChoice
+from llmify.base import (
+    ModelEvent,
+    ModelResponse,
+    ModelTool,
+    ToolChoice,
+)
+from llmify.messages import Message
 from llmify.providers.codex_transport import (
     CodexResponsesResource,
     WebSocketInterrupted,

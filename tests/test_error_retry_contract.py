@@ -13,7 +13,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from llmify.base import UserMessage
+from llmify.messages import UserMessage
 from llmify.errors import (
     AuthenticationError,
     ContextLengthExceededError,
