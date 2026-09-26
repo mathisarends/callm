@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -34,6 +35,15 @@ def test_codex_defaults_to_http() -> None:
 
     assert model._responses_resource is None
     asyncio.run(model.aclose())
+
+
+def test_websocket_transport_without_websockets_installed_names_the_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(sys.modules, "websockets", None)
+
+    with pytest.raises(ImportError, match=r"py-llmify\[websocket\]"):
+        _model("websocket")
 
 
 def test_codex_transport_selection_and_http_fallback() -> None:

@@ -1,8 +1,7 @@
 """The providers llmify ships, each imported only when it is asked for.
 
-Every provider's SDK arrives through a pydantic-ai extra, so importing this
-package must not import all of them: someone who installed only
-`py-llmify` without the `openai` extra still has to be able to `import llmify`.
+Importing a provider pulls in its SDK, so `import llmify` stays cheap by
+deferring that until a provider is actually used.
 """
 
 from importlib import import_module

@@ -43,14 +43,12 @@ here to go wrong.
 pip install py-llmify
 ```
 
-Install only the provider you need:
+This covers OpenAI, Azure OpenAI and Codex. The Codex WebSocket transport
+needs one more package:
 
 ```bash
-pip install py-llmify[openai]      # OpenAI, Azure OpenAI and Codex
+pip install py-llmify[websocket]
 ```
-
-Importing `llmify` never imports a provider SDK, so an extra you did not install
-costs you nothing.
 
 ## Quick start
 
@@ -285,8 +283,8 @@ model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
 ```
 
 `ChatCodex` uses HTTP by default. Set `transport="websocket"` to reuse a
-WebSocket connection across turns. If opening that connection or starting a
-response fails, it retries the request over HTTP. A connection lost after a
+WebSocket connection across turns; this needs the `websocket` extra. If opening
+that connection or starting a response fails, it retries the request over HTTP. A connection lost after a
 response starts is reported without replaying the request.
 
 This reads `~/.codex/auth.json` (honouring `CODEX_HOME`) but never writes it,

@@ -67,6 +67,14 @@ class ChatCodex(PydanticAIModel):
     ) -> None:
         if transport not in ("websocket", "http"):
             raise ValueError("'transport' must be 'websocket' or 'http'.")
+        if transport == "websocket":
+            try:
+                import websockets  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "transport='websocket' requires the 'websockets' package. "
+                    "Install it with: pip install 'py-llmify[websocket]'"
+                ) from None
         try:
             provider = OpenAICodexProvider(
                 credentials, credential_source=credential_source

@@ -18,7 +18,6 @@ from pydantic_ai.providers.openai_codex import (
     OpenAICodexCredentials,
     OpenAICodexProvider,
 )
-from websockets.exceptions import InvalidStatus
 
 _HTTP_COOLDOWN_SECONDS = 30.0
 _ORIGINATOR = "pydantic-ai"
@@ -119,6 +118,8 @@ class CodexResponsesResource(AsyncResponses):
         async with self._connection_lock:
             if self._connection is not None:
                 return self._connection
+            from websockets.exceptions import InvalidStatus
+
             try:
                 (
                     credentials,
