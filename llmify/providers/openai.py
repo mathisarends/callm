@@ -6,7 +6,7 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
-from llmify.pydantic_ai_adapter import PydanticAIModel
+from llmify.pydantic_ai_adapter import PydanticAIModel, credentials_required
 from llmify.retries import RetryCallback
 
 
@@ -29,7 +29,9 @@ class ReasoningEffort(StrEnum):
 class ChatOpenAI(PydanticAIModel):
     """OpenAI's Chat Completions API.
 
-    `api_key` falls back to `OPENAI_API_KEY`.
+    `api_key` falls back to `OPENAI_API_KEY`. Some reasoning models accept
+    function tools here only with `reasoning_effort="none"`; prefer
+    `ChatOpenAIResponses` for them.
     """
 
     def __init__(
@@ -38,6 +40,7 @@ class ChatOpenAI(PydanticAIModel):
         *,
         api_key: str | None = None,
         base_url: str | None = None,
+        reasoning_effort: ReasoningEffort | str | None = None,
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
@@ -61,10 +64,10 @@ class ChatOpenAI(PydanticAIModel):
         on_retry: RetryCallback | None = None,
         **settings: Any,
     ) -> None:
+        with credentials_required():
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
         super().__init__(
-            OpenAIChatModel(
-                model, provider=OpenAIProvider(api_key=api_key, base_url=base_url)
-            ),
+            OpenAIChatModel(model, provider=provider),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
             temperature=temperature,
@@ -82,7 +85,7 @@ class ChatOpenAI(PydanticAIModel):
             extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,
-            **openai_settings(settings),
+            **openai_settings(settings, reasoning_effort=reasoning_effort),
         )
 
 
@@ -125,10 +128,10 @@ class ChatOpenAIResponses(PydanticAIModel):
         on_retry: RetryCallback | None = None,
         **settings: Any,
     ) -> None:
+        with credentials_required():
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
         super().__init__(
-            OpenAIResponsesModel(
-                model, provider=OpenAIProvider(api_key=api_key, base_url=base_url)
-            ),
+            OpenAIResponsesModel(model, provider=provider),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
             temperature=temperature,
@@ -186,10 +189,10 @@ class OpenAICompatible(PydanticAIModel):
         on_retry: RetryCallback | None = None,
         **settings: Any,
     ) -> None:
+        with credentials_required():
+            provider = OpenAIProvider(api_key=api_key, base_url=base_url)
         super().__init__(
-            OpenAIChatModel(
-                model, provider=OpenAIProvider(api_key=api_key, base_url=base_url)
-            ),
+            OpenAIChatModel(model, provider=provider),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
             temperature=temperature,

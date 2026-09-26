@@ -6,7 +6,7 @@ from pydantic_ai.providers.azure import AzureProvider
 from pydantic_ai.settings import ServiceTier, ThinkingLevel
 
 from llmify.providers.openai import ReasoningEffort, openai_settings
-from llmify.pydantic_ai_adapter import PydanticAIModel
+from llmify.pydantic_ai_adapter import PydanticAIModel, credentials_required
 from llmify.retries import RetryCallback
 
 
@@ -24,6 +24,7 @@ class ChatAzureOpenAI(PydanticAIModel):
         api_key: str | None = None,
         azure_endpoint: str | None = None,
         api_version: str | None = None,
+        reasoning_effort: ReasoningEffort | str | None = None,
         # Output
         max_tokens: int | None = None,
         stop_sequences: Sequence[str] | None = None,
@@ -47,15 +48,14 @@ class ChatAzureOpenAI(PydanticAIModel):
         on_retry: RetryCallback | None = None,
         **settings: Any,
     ) -> None:
+        with credentials_required():
+            provider = AzureProvider(
+                azure_endpoint=azure_endpoint,
+                api_key=api_key,
+                api_version=api_version,
+            )
         super().__init__(
-            OpenAIChatModel(
-                model,
-                provider=AzureProvider(
-                    azure_endpoint=azure_endpoint,
-                    api_key=api_key,
-                    api_version=api_version,
-                ),
-            ),
+            OpenAIChatModel(model, provider=provider),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
             temperature=temperature,
@@ -73,7 +73,7 @@ class ChatAzureOpenAI(PydanticAIModel):
             extra_body=extra_body,
             max_retries=max_retries,
             on_retry=on_retry,
-            **openai_settings(settings),
+            **openai_settings(settings, reasoning_effort=reasoning_effort),
         )
 
 
@@ -112,15 +112,14 @@ class ChatAzureOpenAIResponses(PydanticAIModel):
         on_retry: RetryCallback | None = None,
         **settings: Any,
     ) -> None:
+        with credentials_required():
+            provider = AzureProvider(
+                azure_endpoint=azure_endpoint,
+                api_key=api_key,
+                api_version=api_version,
+            )
         super().__init__(
-            OpenAIResponsesModel(
-                model,
-                provider=AzureProvider(
-                    azure_endpoint=azure_endpoint,
-                    api_key=api_key,
-                    api_version=api_version,
-                ),
-            ),
+            OpenAIResponsesModel(model, provider=provider),
             max_tokens=max_tokens,
             stop_sequences=stop_sequences,
             temperature=temperature,

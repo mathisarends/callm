@@ -6,7 +6,6 @@ from typing import Any, get_args, overload
 from uuid import uuid4
 
 from pydantic import BaseModel
-from pydantic_ai.exceptions import UserError
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.openai_codex import OpenAICodexModel
 from pydantic_ai.providers.openai_codex import (
@@ -17,7 +16,7 @@ from pydantic_ai.providers.openai_codex import (
 from pydantic_ai.settings import ModelSettings, ServiceTier, ThinkingLevel
 
 from llmify.base import ModelEvent, ModelResponse, ModelTool, ToolChoice
-from llmify.errors import CredentialsUnavailableError, ResponseInterruptedError
+from llmify.errors import ResponseInterruptedError
 from llmify.messages import Message, SystemMessage
 from llmify.providers.codex.transport import (
     Transport,
@@ -31,7 +30,11 @@ from llmify.providers.codex.websocket import (
     WebSocketUnavailable,
 )
 from llmify.providers.openai import ReasoningEffort, openai_settings
-from llmify.pydantic_ai_adapter import PydanticAIModel, model_messages
+from llmify.pydantic_ai_adapter import (
+    PydanticAIModel,
+    credentials_required,
+    model_messages,
+)
 from llmify.retries import RetryCallback
 
 _SESSION_HEADERS = ("session-id", "thread-id", "x-client-request-id")
@@ -111,12 +114,10 @@ class ChatCodex(PydanticAIModel):
             on_transport_fallback
         ):
             raise TypeError("'on_transport_fallback' must be an async callable.")
-        try:
+        with credentials_required():
             provider = OpenAICodexProvider(
                 credentials, credential_source=credential_source
             )
-        except UserError as error:
-            raise CredentialsUnavailableError(str(error)) from error
 
         self._responses_resource: CodexResponsesResource | None = None
         self._prepared_request: _PreparedRequest | None = None

@@ -237,3 +237,37 @@ def test_importing_llmify_does_not_require_websockets() -> None:
     )
 
     assert loaded.stdout.strip() == "ChatCodex"
+
+
+@pytest.mark.parametrize(
+    ("make", "variables"),
+    [
+        (lambda: llmify.ChatOpenAI("gpt-5.6"), ["OPENAI_API_KEY"]),
+        (lambda: llmify.ChatOpenAIResponses("gpt-5.6"), ["OPENAI_API_KEY"]),
+        (
+            lambda: llmify.ChatAzureOpenAI("deployment", api_version="2024-10-01"),
+            ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY"],
+        ),
+        (
+            lambda: llmify.ChatAzureOpenAIResponses(
+                "deployment", api_version="2024-10-01"
+            ),
+            ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY"],
+        ),
+    ],
+)
+def test_missing_credentials_are_reported_as_llmify_errors(
+    make, variables: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for variable in variables:
+        monkeypatch.delenv(variable, raising=False)
+
+    with pytest.raises(CredentialsUnavailableError):
+        make()
+
+
+def test_chat_completions_take_a_reasoning_effort() -> None:
+    model = llmify.ChatOpenAI("gpt-5.6", api_key="k", reasoning_effort="none")
+
+    assert model._settings is not None
+    assert model._settings.get("openai_reasoning_effort") == "none"

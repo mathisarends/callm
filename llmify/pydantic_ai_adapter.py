@@ -7,7 +7,8 @@ new provider is a constructor and nothing else.
 
 import base64
 import inspect
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Iterator, Sequence
+from contextlib import contextmanager
 from typing import Any, overload
 
 from pydantic import BaseModel, ValidationError
@@ -15,6 +16,7 @@ from pydantic_ai.exceptions import (
     ModelAPIError,
     ModelHTTPError,
     UnexpectedModelBehavior,
+    UserError,
 )
 from pydantic_ai.messages import (
     BinaryContent,
@@ -61,6 +63,7 @@ from llmify.base import (
 from llmify.errors import (
     AuthenticationError,
     ContextLengthExceededError,
+    CredentialsUnavailableError,
     ModelBehaviorError,
     OutOfCreditsError,
     ProviderError,
@@ -274,6 +277,15 @@ class PydanticAIModel(ChatModel):
 def _settings(values: dict[str, Any]) -> ModelSettings | None:
     present = {key: value for key, value in values.items() if value is not None}
     return ModelSettings(**present) if present else None  # type: ignore[typeddict-item]
+
+
+@contextmanager
+def credentials_required() -> Iterator[None]:
+    """Report a provider that cannot find its credentials as llmify's error."""
+    try:
+        yield
+    except UserError as error:
+        raise CredentialsUnavailableError(str(error)) from error
 
 
 def request_parameters(
