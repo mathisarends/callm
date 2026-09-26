@@ -37,7 +37,7 @@ from pydantic_ai.messages import (
     ModelResponse as PydanticModelResponse,
 )
 from pydantic_ai.models import Model, ModelRequestParameters
-from pydantic_ai.settings import ModelSettings
+from pydantic_ai.settings import ModelSettings, ServiceTier, ThinkingLevel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.usage import RequestUsage
 
@@ -85,18 +85,34 @@ class PydanticAIModel(ChatModel):
         self,
         model: Model,
         *,
+        # Output
         max_tokens: int | None = None,
+        stop_sequences: Sequence[str] | None = None,
+        stop: Sequence[str] | None = None,
+        # Sampling
         temperature: float | None = None,
         top_p: float | None = None,
+        top_k: int | None = None,
+        seed: int | None = None,
         frequency_penalty: float | None = None,
         presence_penalty: float | None = None,
-        stop: Sequence[str] | None = None,
-        seed: int | None = None,
+        logit_bias: dict[str, int] | None = None,
+        # Model behavior
+        thinking: ThinkingLevel | None = None,
+        parallel_tool_calls: bool | None = None,
+        service_tier: ServiceTier | None = None,
+        # Request and retries
         timeout: float | None = 60.0,
+        extra_headers: dict[str, str] | None = None,
+        extra_body: object | None = None,
         max_retries: int = 2,
         on_retry: RetryCallback | None = None,
         **settings: Any,
     ) -> None:
+        if "tool_choice" in settings:
+            raise TypeError("'tool_choice' must be passed to call() or stream().")
+        if stop is not None and stop_sequences is not None:
+            raise ValueError("'stop' and 'stop_sequences' cannot both be set.")
         if not isinstance(max_retries, int) or isinstance(max_retries, bool):
             raise TypeError("'max_retries' must be an integer.")
         if max_retries < 0:
@@ -105,16 +121,26 @@ class PydanticAIModel(ChatModel):
         self._model = model
         self._max_retries = max_retries
         self._on_retry = on_retry
+        stop_values = stop_sequences if stop_sequences is not None else stop
         self._settings = _settings(
             {
                 "max_tokens": max_tokens,
                 "temperature": temperature,
                 "top_p": top_p,
+                "top_k": top_k,
+                "seed": seed,
                 "frequency_penalty": frequency_penalty,
                 "presence_penalty": presence_penalty,
-                "stop_sequences": list(stop) if stop is not None else None,
-                "seed": seed,
+                "logit_bias": logit_bias,
+                "stop_sequences": list(stop_values)
+                if stop_values is not None
+                else None,
+                "thinking": thinking,
+                "parallel_tool_calls": parallel_tool_calls,
+                "service_tier": service_tier,
                 "timeout": timeout,
+                "extra_headers": extra_headers,
+                "extra_body": extra_body,
                 **settings,
             }
         )

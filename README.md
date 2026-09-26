@@ -277,11 +277,10 @@ is borrowed:
 model = ChatCodex("gpt-5.6-terra", reasoning_effort="high")
 ```
 
-`ChatCodex` uses the Codex Responses WebSocket by default and reuses its
-connection across turns. If opening the connection or starting a response fails,
-it retries that request over HTTP. A connection lost after a response starts is
-reported without replaying the request. Use `transport="http"` to select HTTP
-from the start.
+`ChatCodex` uses HTTP by default. Set `transport="websocket"` to reuse a
+WebSocket connection across turns. If opening that connection or starting a
+response fails, it retries the request over HTTP. A connection lost after a
+response starts is reported without replaying the request.
 
 This reads `~/.codex/auth.json` (honouring `CODEX_HOME`) but never writes it,
 so refreshed tokens last only as long as the process. To keep them, pass a
@@ -291,29 +290,27 @@ A missing or unusable login raises `CredentialsUnavailableError`.
 
 ## Model settings
 
-Common settings are named on every constructor:
+Shared pydantic-ai settings are named, keyword-only parameters on every model
+constructor. The IDE can show their types and defaults:
 
 ```python
 model = ChatOpenAI(
     "gpt-5.6",
     max_tokens=1000,
     temperature=0.7,
-    top_p=0.9,
-    frequency_penalty=0.0,
-    presence_penalty=0.0,
-    stop=["\n\n"],
-    seed=42,
+    stop_sequences=["\n\n"],
     timeout=60.0,
     max_retries=2,
-    default_headers={"X-Tenant": "acme"},
+    extra_headers={"X-Tenant": "acme"},
 )
 ```
 
-Anything else is passed to pydantic-ai as a model setting, which is how
-provider-specific options stay available without llmify having to know them:
+The older `stop` and `default_headers` names still work as aliases. A setting's
+availability depends on the provider and model. Other provider-specific options
+are passed to pydantic-ai as model settings:
 
 ```python
-model = ChatOpenAI("gpt-5.6", service_tier="flex", extra_body={"safety": "strict"})
+model = ChatOpenAIResponses("gpt-5.6", openai_text_verbosity="low")
 ```
 
 See [pydantic-ai's model settings](https://ai.pydantic.dev/api/settings/) for
