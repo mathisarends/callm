@@ -13,7 +13,6 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from callm.messages import UserMessage
 from callm.errors import (
     AuthenticationError,
     ContextLengthExceededError,
@@ -23,6 +22,7 @@ from callm.errors import (
     RateLimitError,
     RetryableError,
 )
+from callm.messages import UserMessage
 from callm.pydantic_ai_adapter import PydanticAIModel
 from callm.retries import RetryEvent
 

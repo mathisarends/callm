@@ -4,11 +4,11 @@ from collections.abc import Callable
 from dotenv import load_dotenv
 
 from callm import (
+    CallmError,
     ChatAzureOpenAI,
     ChatModel,
     ChatOpenAI,
     ChatOpenAIResponses,
-    CallmError,
     UserMessage,
 )
 

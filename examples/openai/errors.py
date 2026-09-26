@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 
 from callm import (
     AuthenticationError,
-    ChatOpenAI,
     CallmError,
+    ChatOpenAI,
     RetryEvent,
     UserMessage,
 )

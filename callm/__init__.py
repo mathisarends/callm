@@ -1,15 +1,3 @@
-from .errors import (
-    AuthenticationError,
-    ContextLengthExceededError,
-    CredentialsUnavailableError,
-    CallmError,
-    ModelBehaviorError,
-    OutOfCreditsError,
-    ProviderError,
-    RateLimitError,
-    ResponseInterruptedError,
-    RetryableError,
-)
 from .base import (
     ChatModel,
     ModelEvent,
@@ -21,6 +9,18 @@ from .base import (
     ToolCallEvent,
     ToolChoice,
     Usage,
+)
+from .errors import (
+    AuthenticationError,
+    CallmError,
+    ContextLengthExceededError,
+    CredentialsUnavailableError,
+    ModelBehaviorError,
+    OutOfCreditsError,
+    ProviderError,
+    RateLimitError,
+    ResponseInterruptedError,
+    RetryableError,
 )
 from .messages import (
     AssistantMessage,
@@ -47,10 +47,10 @@ from .providers import (
 )
 from .retries import RetryCallback, RetryEvent
 
-
 __all__ = [
     "AssistantMessage",
     "AuthenticationError",
+    "CallmError",
     "ChatAzureOpenAI",
     "ChatAzureOpenAIResponses",
     "ChatCodex",
@@ -60,7 +60,6 @@ __all__ = [
     "ContextLengthExceededError",
     "CredentialsUnavailableError",
     "ImageUrl",
-    "CallmError",
     "Message",
     "MessageType",
     "ModelBehaviorError",
